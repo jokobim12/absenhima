@@ -2,6 +2,14 @@
 /**
  * Redirect user ke Google OAuth
  */
+// Set session cookie parameters for better compatibility
+session_set_cookie_params([
+    'lifetime' => 3600,
+    'path' => '/',
+    'secure' => false,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
 session_start();
 require_once "../config/google.php";
 

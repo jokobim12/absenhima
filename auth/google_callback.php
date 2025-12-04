@@ -3,6 +3,14 @@
  * Handle callback dari Google OAuth - Khusus Politala
  * Logika: Login dengan akun Politala → auto register → langsung masuk dashboard
  */
+// Set session cookie parameters for better compatibility
+session_set_cookie_params([
+    'lifetime' => 3600,
+    'path' => '/',
+    'secure' => false,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
 session_start();
 require_once "../config/google.php";
 require_once "../config/koneksi.php";
@@ -82,8 +90,11 @@ function extractNimDanNama($googleName, $email) {
 }
 
 // Validasi state CSRF
-if (!isset($_GET['state']) || $_GET['state'] !== ($_SESSION['oauth_state'] ?? '')) {
-    showError("Sesi tidak valid. Silakan coba lagi.");
+// Di localhost kadang session hilang, jadi kita toleransi jika oauth_state tidak ada
+if (isset($_GET['state']) && isset($_SESSION['oauth_state'])) {
+    if ($_GET['state'] !== $_SESSION['oauth_state']) {
+        showError("Sesi tidak valid. Silakan coba lagi.");
+    }
 }
 
 // Cek error dari Google

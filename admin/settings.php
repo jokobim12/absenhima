@@ -3,9 +3,24 @@ include "auth.php";
 include "../config/koneksi.php";
 include "../config/settings.php";
 include "../config/lang.php";
+include "../config/push_helper.php";
 
 $success = '';
 $error = '';
+
+// Handle VAPID key generation
+if (isset($_POST['generate_vapid'])) {
+    $keys = generateVapidKeys();
+    if ($keys) {
+        if (saveVapidKeys($conn, $keys['publicKey'], $keys['privateKeyPem'])) {
+            $success = 'VAPID keys berhasil dibuat!';
+        } else {
+            $error = 'Gagal menyimpan VAPID keys';
+        }
+    } else {
+        $error = 'Gagal membuat VAPID keys. Pastikan OpenSSL mendukung EC keys.';
+    }
+}
 
 // Handle delete image
 if (isset($_GET['delete_image']) && !empty($_GET['delete_image'])) {
@@ -145,8 +160,8 @@ $active_tab = $_GET['tab'] ?? 'branding';
                         <a href="?tab=language" class="px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 <?= $active_tab == 'language' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700' ?>">
                             Bahasa
                         </a>
-                        <a href="?tab=google" class="px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 <?= $active_tab == 'google' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700' ?>">
-                            Google OAuth
+                        <a href="?tab=notifications" class="px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 <?= $active_tab == 'notifications' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700' ?>">
+                            Notifikasi
                         </a>
                     </nav>
                 </div>
@@ -422,52 +437,121 @@ $active_tab = $_GET['tab'] ?? 'branding';
                     </div>
                     <?php endif; ?>
 
-                    <!-- Google OAuth Tab -->
-                    <?php if ($active_tab == 'google'): ?>
+                    <!-- Notifications Tab -->
+                    <?php if ($active_tab == 'notifications'): 
+                        ensurePushTables($conn);
+                        $vapid = getVapidKeys($conn);
+                        $subCount = countPushSubscriptions($conn);
+                        $pushSupported = isPushSupported();
+                    ?>
                     <div class="space-y-6">
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Google OAuth 2.0</h2>
-                            <p class="text-sm text-gray-500">Konfigurasi untuk login dengan Google. Dapatkan credentials di <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-600 hover:underline">Google Cloud Console</a></p>
+                            <h2 class="text-lg font-semibold text-gray-900">Push Notifications</h2>
+                            <p class="text-sm text-gray-500">Kirim notifikasi ke pengguna saat event absen dimulai</p>
                         </div>
-                        
-                        <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                            <p class="text-sm text-yellow-800">
-                                <strong>Penting:</strong> Pastikan Authorized redirect URI di Google Console sama dengan nilai Google Redirect URI di bawah.
-                            </p>
-                        </div>
-                        
-                        <div class="space-y-4">
-                            <?php foreach ($google as $key => $setting): ?>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2"><?= htmlspecialchars($setting['setting_label']) ?></label>
-                                <?php if ($setting['setting_type'] == 'password'): ?>
-                                <input type="password" name="settings[<?= $key ?>]" value="<?= htmlspecialchars($setting['setting_value']) ?>" 
-                                       class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition font-mono text-sm">
-                                <?php else: ?>
-                                <input type="text" name="settings[<?= $key ?>]" value="<?= htmlspecialchars($setting['setting_value']) ?>" 
-                                       class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition font-mono text-sm"
-                                       <?= $key == 'google_redirect_uri' ? 'placeholder="https://yourdomain.com/absenhima/auth/google_callback.php"' : '' ?>>
-                                <?php endif; ?>
+
+                        <?php if (!$pushSupported): ?>
+                        <div class="p-4 bg-red-50 rounded-xl border border-red-200">
+                            <div class="flex items-center gap-2 text-red-700">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                                <span class="font-medium">Push Notifications Tidak Didukung</span>
                             </div>
-                            <?php endforeach; ?>
+                            <p class="text-sm text-red-600 mt-2">Server hosting tidak mendukung OpenSSL EC (prime256v1). Fitur push notification tidak dapat digunakan. Hubungi provider hosting untuk mengaktifkan OpenSSL EC support.</p>
                         </div>
-                        
-                        <?php if (empty($google)): ?>
-                        <div class="p-4 bg-red-50 border border-red-200 rounded-xl">
-                            <p class="text-sm text-red-700">
-                                <strong>Settings Google OAuth belum ada.</strong> Jalankan migration terlebih dahulu:<br>
-                                <code class="bg-red-100 px-2 py-1 rounded">php config/migrate_google.php</code>
-                            </p>
+                        <?php else: ?>
+
+                        <!-- VAPID Keys -->
+                        <div class="p-4 bg-gray-50 rounded-xl">
+                            <h3 class="text-sm font-medium text-gray-900 mb-3">VAPID Keys</h3>
+                            <?php if ($vapid): ?>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Public Key</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" value="<?= htmlspecialchars($vapid['public_key']) ?>" readonly 
+                                               class="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-mono" id="vapidPublicKey">
+                                        <button type="button" onclick="copyToClipboard('vapidPublicKey')" 
+                                                class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm">
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2 text-sm text-green-600">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                    VAPID Keys sudah dikonfigurasi
+                                </div>
+                            </div>
+                            <?php else: ?>
+                            <div class="text-sm text-yellow-600 mb-3 flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                                VAPID Keys belum dikonfigurasi
+                            </div>
+                            <?php endif; ?>
+                            <button type="submit" name="generate_vapid" value="1" 
+                                    class="mt-3 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium">
+                                <?= $vapid ? 'Generate Ulang VAPID Keys' : 'Generate VAPID Keys' ?>
+                            </button>
+                            <?php if ($vapid): ?>
+                            <p class="text-xs text-gray-400 mt-2">Perhatian: Generate ulang akan membuat semua subscriber harus subscribe ulang</p>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Subscription Stats -->
+                        <div class="p-4 bg-gray-50 rounded-xl">
+                            <h3 class="text-sm font-medium text-gray-900 mb-3">Statistik Subscriber</h3>
+                            <div class="flex items-center gap-4">
+                                <div class="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-3xl font-bold text-gray-900"><?= $subCount ?></p>
+                                    <p class="text-sm text-gray-500">Perangkat terdaftar</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Info -->
+                        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                            <h3 class="text-sm font-medium text-blue-900 mb-2">Cara Kerja</h3>
+                            <ul class="text-sm text-blue-700 space-y-1">
+                                <li>1. Generate VAPID Keys (sekali saja)</li>
+                                <li>2. User yang login akan otomatis diminta izin notifikasi</li>
+                                <li>3. Saat admin memulai event absen, semua user yang subscribe akan menerima notifikasi</li>
+                            </ul>
                         </div>
                         <?php endif; ?>
                     </div>
                     <?php endif; ?>
 
+                    <script>
+                    function copyToClipboard(id) {
+                        var input = document.getElementById(id);
+                        input.select();
+                        document.execCommand('copy');
+                        alert('Copied!');
+                    }
+                    </script>
+
                     <!-- Submit Button -->
-                    <div class="mt-8 pt-6 border-t border-gray-200 flex justify-end">
-                        <button type="submit" class="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl transition">
-                            Simpan Pengaturan
-                        </button>
+                    <div class="mt-8 pt-6 border-t border-gray-200">
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl transition shadow-lg">
+                                <span class="flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                    Simpan Perubahan
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

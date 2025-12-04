@@ -139,6 +139,24 @@
 <script>
 var scanner = null;
 var isProcessing = false;
+var userLocation = null;
+
+// Try to get user location on page load
+if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            userLocation = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+            };
+            console.log('Location acquired:', userLocation);
+        },
+        function(error) {
+            console.log('Location error:', error.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
 
 function onScanSuccess(decodedText) {
     if (isProcessing) return;
@@ -154,15 +172,36 @@ function onScanSuccess(decodedText) {
         scanner.clear();
     }
     
-    // Submit via AJAX
-    fetch('api_submit_absen.php?token=' + encodeURIComponent(decodedText))
+    // Build form data with location
+    const formData = new FormData();
+    formData.append('token', decodedText);
+    if (userLocation) {
+        formData.append('latitude', userLocation.latitude);
+        formData.append('longitude', userLocation.longitude);
+    }
+    
+    // Submit via AJAX with POST (to send location data)
+    fetch('api_submit_absen.php', {
+        method: 'POST',
+        body: formData
+    })
         .then(response => response.json())
         .then(data => {
             document.getElementById('status-processing').classList.add('hidden');
             
             if (data.success) {
-                document.getElementById('success-event').textContent = data.event_name + ' - ' + data.timestamp;
+                let msg = data.event_name + ' - ' + data.timestamp;
+                if (data.location_verified) {
+                    msg += ' ✓ GPS';
+                }
+                document.getElementById('success-event').textContent = msg;
                 document.getElementById('status-success').classList.remove('hidden');
+            } else if (data.require_location) {
+                // Event requires location but we don't have it
+                document.getElementById('error-message').textContent = data.message;
+                document.getElementById('status-error').classList.remove('hidden');
+                // Try to get location again
+                requestLocation();
             } else {
                 document.getElementById('error-message').textContent = data.message;
                 document.getElementById('status-error').classList.remove('hidden');
@@ -173,6 +212,24 @@ function onScanSuccess(decodedText) {
             document.getElementById('error-message').textContent = 'Terjadi kesalahan jaringan. Silakan coba lagi.';
             document.getElementById('status-error').classList.remove('hidden');
         });
+}
+
+function requestLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                userLocation = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                };
+                alert('Lokasi berhasil diambil. Silakan scan ulang QR code.');
+            },
+            function(error) {
+                alert('Gagal mengambil lokasi. Pastikan GPS aktif dan izinkan akses lokasi.');
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }
 }
 
 function resetScanner() {
