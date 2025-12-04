@@ -1,9 +1,6 @@
 # Environment
 .env
 
-# Config rahasia
-config/google.php
-
 # Folder cache
 vendor/
 node_modules/

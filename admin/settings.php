@@ -81,6 +81,7 @@ $branding = getSettingsByGroup('branding');
 $colors = getSettingsByGroup('colors');
 $homepage = getSettingsByGroup('homepage');
 $footer = getSettingsByGroup('footer');
+$google = getSettingsByGroup('google');
 
 // Get translations
 $translations = getTranslationsGrouped();
@@ -143,6 +144,9 @@ $active_tab = $_GET['tab'] ?? 'branding';
                         </a>
                         <a href="?tab=language" class="px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 <?= $active_tab == 'language' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700' ?>">
                             Bahasa
+                        </a>
+                        <a href="?tab=google" class="px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 <?= $active_tab == 'google' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700' ?>">
+                            Google OAuth
                         </a>
                     </nav>
                 </div>
@@ -415,6 +419,47 @@ $active_tab = $_GET['tab'] ?? 'branding';
                             </div>
                             <?php endforeach; ?>
                         </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Google OAuth Tab -->
+                    <?php if ($active_tab == 'google'): ?>
+                    <div class="space-y-6">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-900">Google OAuth 2.0</h2>
+                            <p class="text-sm text-gray-500">Konfigurasi untuk login dengan Google. Dapatkan credentials di <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-600 hover:underline">Google Cloud Console</a></p>
+                        </div>
+                        
+                        <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                            <p class="text-sm text-yellow-800">
+                                <strong>Penting:</strong> Pastikan Authorized redirect URI di Google Console sama dengan nilai Google Redirect URI di bawah.
+                            </p>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <?php foreach ($google as $key => $setting): ?>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2"><?= htmlspecialchars($setting['setting_label']) ?></label>
+                                <?php if ($setting['setting_type'] == 'password'): ?>
+                                <input type="password" name="settings[<?= $key ?>]" value="<?= htmlspecialchars($setting['setting_value']) ?>" 
+                                       class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition font-mono text-sm">
+                                <?php else: ?>
+                                <input type="text" name="settings[<?= $key ?>]" value="<?= htmlspecialchars($setting['setting_value']) ?>" 
+                                       class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition font-mono text-sm"
+                                       <?= $key == 'google_redirect_uri' ? 'placeholder="https://yourdomain.com/absenhima/auth/google_callback.php"' : '' ?>>
+                                <?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        
+                        <?php if (empty($google)): ?>
+                        <div class="p-4 bg-red-50 border border-red-200 rounded-xl">
+                            <p class="text-sm text-red-700">
+                                <strong>Settings Google OAuth belum ada.</strong> Jalankan migration terlebih dahulu:<br>
+                                <code class="bg-red-100 px-2 py-1 rounded">php config/migrate_google.php</code>
+                            </p>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <?php endif; ?>
 
