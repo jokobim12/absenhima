@@ -4,6 +4,13 @@ include "../config/koneksi.php";
 
 // Get admin data
 $admin_id = $_SESSION['admin_id'];
+
+// Cek apakah kolom email ada di tabel admin, tambahkan jika belum
+$checkEmail = mysqli_query($conn, "SHOW COLUMNS FROM admin LIKE 'email'");
+if (mysqli_num_rows($checkEmail) == 0) {
+    mysqli_query($conn, "ALTER TABLE admin ADD COLUMN email VARCHAR(100) DEFAULT NULL AFTER username");
+}
+
 $admin = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM admin WHERE id='$admin_id'"));
 
 $success = '';
@@ -15,15 +22,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Update Profile Info
     if (isset($_POST['update_profile'])) {
         $username = mysqli_real_escape_string($conn, trim($_POST['username']));
+        $email = mysqli_real_escape_string($conn, trim($_POST['email'] ?? ''));
         
-        // Check if username already taken
-        $check = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM admin WHERE username='$username' AND id != '$admin_id'"));
-        if ($check) {
-            $error = 'Username sudah digunakan';
-        } else {
-            mysqli_query($conn, "UPDATE admin SET username='$username' WHERE id='$admin_id'");
+        $canUpdate = true;
+        
+        // Hanya cek username jika berubah
+        if ($username !== $admin['username']) {
+            $stmtCheck = mysqli_prepare($conn, "SELECT id FROM admin WHERE username = ?");
+            mysqli_stmt_bind_param($stmtCheck, "s", $username);
+            mysqli_stmt_execute($stmtCheck);
+            $checkResult = mysqli_stmt_get_result($stmtCheck);
+            $check = mysqli_fetch_assoc($checkResult);
+            mysqli_stmt_close($stmtCheck);
+            
+            if ($check) {
+                $error = 'Username sudah digunakan';
+                $canUpdate = false;
+            }
+        }
+        
+        if ($canUpdate) {
+            $emailValue = $email ?: null;
+            $stmtUpdate = mysqli_prepare($conn, "UPDATE admin SET username = ?, email = ? WHERE id = ?");
+            mysqli_stmt_bind_param($stmtUpdate, "ssi", $username, $emailValue, $admin_id);
+            mysqli_stmt_execute($stmtUpdate);
+            mysqli_stmt_close($stmtUpdate);
+            
             $success = 'Profil berhasil diperbarui';
             $admin['username'] = $username;
+            $admin['email'] = $email;
         }
     }
     
@@ -155,6 +182,14 @@ $picture_url = !empty($admin['picture']) ? '../' . $admin['picture'] : null;
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
                                 <input type="text" name="username" value="<?= htmlspecialchars($admin['username']) ?>" 
                                        class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition" required>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                <input type="email" name="email" value="<?= htmlspecialchars($admin['email'] ?? '') ?>" 
+                                       class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition"
+                                       placeholder="Isi dengan email akun user Anda">
+                                <p class="text-xs text-gray-400 mt-1">Untuk mengakses forum dengan akun user terkait</p>
                             </div>
                             
                             <div>

@@ -776,6 +776,7 @@ $languages = getAvailableLanguages();
     let isPolling = true;
     let replyTo = null;
     let editingId = null;
+    let isAdmin = <?= isset($_SESSION['admin_id']) ? 'true' : 'false' ?>;
 
     const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -829,11 +830,22 @@ $languages = getAvailableLanguages();
         const picture = msg.picture ? (msg.picture.startsWith('http') ? msg.picture : '../' + msg.picture) : '';
         const isDeleted = msg.is_deleted;
         const isEdited = msg.is_edited;
+        const isPinned = msg.is_pinned;
         
         let dateHeader = '';
         if (showDate) {
             dateHeader = `<div class="text-center my-3"><span class="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full">${formatDate(msg.created_at)}</span></div>`;
         }
+        
+        // Pin badge untuk pesan yang di-pin
+        const pinBadge = isPinned ? `
+            <div class="flex items-center gap-1 text-amber-600 text-xs mb-1">
+                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L10 6.477V16h2a1 1 0 110 2H8a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/>
+                </svg>
+                <span class="font-medium">Disematkan</span>
+            </div>
+        ` : '';
         
         const replyHtml = (!isDeleted && msg.reply_info) ? `
             <div class="bg-slate-100/50 border-l-2 border-secondary px-2 py-1 rounded mb-1 cursor-pointer" onclick="scrollToMessage(${msg.reply_to})">
@@ -860,8 +872,19 @@ $languages = getAvailableLanguages();
 
         const editedLabel = (isEdited && !isDeleted) ? `<span class="text-xs ${isMe ? 'text-white/50' : 'text-slate-400'} ml-1">· diedit</span>` : '';
         
+        // Tombol pin untuk admin
+        const pinButton = (isAdmin && !isDeleted) ? `
+            <button onclick="togglePin(${msg.id}, ${isPinned})" 
+                class="p-1 ${isPinned ? 'text-amber-500' : 'text-slate-400'} hover:text-amber-600" title="${isPinned ? 'Lepas Pin' : 'Pin Pesan'}">
+                <svg class="w-4 h-4" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L10 6.477V16h2a1 1 0 110 2H8a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/>
+                </svg>
+            </button>
+        ` : '';
+
         const actionButtons = (isMe && !isDeleted) ? `
             <div class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-1 transition">
+                ${pinButton}
                 <button onclick="setReply(${msg.id}, '${msg.nama.replace(/'/g, "\\'")}', '${msg.message.replace(/'/g, "\\'").replace(/\n/g, ' ')}')" 
                     class="p-1 text-slate-400 hover:text-slate-600" title="Balas">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -889,17 +912,20 @@ $languages = getAvailableLanguages();
                 </svg>
             </button>
         ` : (!isDeleted ? `
-            <button onclick="setReply(${msg.id}, '${msg.nama.replace(/'/g, "\\'")}', '${msg.message.replace(/'/g, "\\'").replace(/\n/g, ' ')}')" 
-                class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-600 transition" title="Balas">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
-                </svg>
-            </button>
+            <div class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-1 transition">
+                ${pinButton}
+                <button onclick="setReply(${msg.id}, '${msg.nama.replace(/'/g, "\\'")}', '${msg.message.replace(/'/g, "\\'").replace(/\n/g, ' ')}')" 
+                    class="p-1 text-slate-400 hover:text-slate-600" title="Balas">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                    </svg>
+                </button>
+            </div>
         ` : '');
         
         return `
             ${dateHeader}
-            <div class="flex gap-2 ${isMe ? 'flex-row-reverse' : ''} group" id="msg-${msg.id}">
+            <div class="flex gap-2 ${isMe ? 'flex-row-reverse' : ''} group ${isPinned ? 'bg-amber-50/50 -mx-2 px-2 py-1 rounded-lg' : ''}" id="msg-${msg.id}">
                 ${!isMe && picture ? 
                     `<img src="${picture}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-auto">` :
                     !isMe ? `<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 mt-auto">
@@ -909,7 +935,8 @@ $languages = getAvailableLanguages();
                     </div>` : ''
                 }
                 <div class="max-w-[75%] relative">
-                    <div class="${isMe ? 'bg-secondary text-white' : 'bg-white border border-slate-200'} px-3 py-2 rounded-xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} ${isDeleted ? 'opacity-70' : ''}">
+                    ${pinBadge}
+                    <div class="${isMe ? 'bg-secondary text-white' : 'bg-white border border-slate-200'} ${isPinned && !isMe ? 'border-amber-300' : ''} px-3 py-2 rounded-xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} ${isDeleted ? 'opacity-70' : ''}">
                         ${!isMe ? `<p class="text-xs font-semibold ${isMe ? 'text-white/80' : 'text-secondary'} mb-1">${msg.nama}</p>` : ''}
                         ${replyHtml}
                         ${messageContent}
@@ -983,6 +1010,26 @@ $languages = getAvailableLanguages();
         }
     }
 
+    async function togglePin(id, currentlyPinned) {
+        try {
+            const res = await fetch(`${BASE_URL}/forum_pin.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, action: currentlyPinned ? 'unpin' : 'pin' })
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                lastMessageId = 0;
+                await loadMessages();
+            } else {
+                alert(data.error || 'Gagal mengubah status pin');
+            }
+        } catch (err) {
+            console.error('Error toggling pin:', err);
+        }
+    }
+
     async function editMessage(id, message) {
         try {
             const res = await fetch(`${BASE_URL}/forum_edit.php`, {
@@ -1012,6 +1059,11 @@ $languages = getAvailableLanguages();
         try {
             const res = await fetch(`${BASE_URL}/forum_messages.php?last_id=${lastMessageId}`);
             const data = await res.json();
+            
+            // Update isAdmin dari response API
+            if (typeof data.is_admin !== 'undefined') {
+                isAdmin = data.is_admin;
+            }
             
             if (data.messages && data.messages.length > 0) {
                 const container = document.getElementById('chatMessages');

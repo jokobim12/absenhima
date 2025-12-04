@@ -22,6 +22,31 @@ if(isset($_POST['login'])){
         // Regenerate session ID untuk mencegah session fixation
         session_regenerate_id(true);
         $_SESSION['admin_id'] = $d['id'];
+        
+        // Auto-link: cek apakah ada user dengan email sama dengan admin
+        // Pertama, cek apakah kolom email ada di tabel admin
+        $checkEmail = mysqli_query($conn, "SHOW COLUMNS FROM admin LIKE 'email'");
+        if (mysqli_num_rows($checkEmail) == 0) {
+            mysqli_query($conn, "ALTER TABLE admin ADD COLUMN email VARCHAR(100) DEFAULT NULL AFTER username");
+        }
+        
+        // Ambil email admin (jika ada)
+        $adminEmail = $d['email'] ?? null;
+        
+        // Jika admin punya email, cari user yang cocok
+        if ($adminEmail) {
+            $stmtUser = mysqli_prepare($conn, "SELECT id FROM users WHERE email = ?");
+            mysqli_stmt_bind_param($stmtUser, "s", $adminEmail);
+            mysqli_stmt_execute($stmtUser);
+            $userResult = mysqli_stmt_get_result($stmtUser);
+            $linkedUser = mysqli_fetch_assoc($userResult);
+            mysqli_stmt_close($stmtUser);
+            
+            if ($linkedUser) {
+                $_SESSION['user_id'] = $linkedUser['id'];
+            }
+        }
+        
         header("Location: ../admin/index.php");
         exit;
     } else {

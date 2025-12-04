@@ -47,10 +47,21 @@ if (mysqli_num_rows($checkImg) == 0) {
     mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN image_url VARCHAR(255) DEFAULT NULL AFTER message");
 }
 
+// Cek kolom is_pinned
+$checkPin = mysqli_query($conn, "SHOW COLUMNS FROM forum_messages LIKE 'is_pinned'");
+if (mysqli_num_rows($checkPin) == 0) {
+    mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN is_pinned TINYINT(1) DEFAULT 0 AFTER is_edited");
+    mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN pinned_by INT DEFAULT NULL AFTER is_pinned");
+    mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN pinned_at TIMESTAMP NULL DEFAULT NULL AFTER pinned_by");
+}
+
+// Cek apakah user adalah admin
+$is_admin = isset($_SESSION['admin_id']);
+
 // Ambil pesan
 if ($last_id > 0) {
     $stmt = mysqli_prepare($conn, "
-        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.created_at, u.nama, u.picture 
+        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.is_pinned, m.pinned_at, m.created_at, u.nama, u.picture 
         FROM forum_messages m 
         JOIN users u ON m.user_id = u.id 
         WHERE m.id > ?
@@ -59,10 +70,10 @@ if ($last_id > 0) {
     mysqli_stmt_bind_param($stmt, "i", $last_id);
 } else {
     $result = mysqli_query($conn, "
-        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.created_at, u.nama, u.picture 
+        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.is_pinned, m.pinned_at, m.created_at, u.nama, u.picture 
         FROM forum_messages m 
         JOIN users u ON m.user_id = u.id 
-        ORDER BY m.id DESC
+        ORDER BY m.is_pinned DESC, m.id DESC
         LIMIT 50
     ");
 }
@@ -103,8 +114,11 @@ if (!empty($reply_ids)) {
 
 // Format messages
 $formatted = [];
+$pinned = [];
+$regular = [];
+
 foreach ($messages as $row) {
-    $formatted[] = [
+    $msg = [
         'id' => $row['id'],
         'user_id' => $row['user_id'],
         'nama' => $row['nama'],
@@ -115,14 +129,25 @@ foreach ($messages as $row) {
         'reply_info' => $row['reply_to'] ? ($reply_data[$row['reply_to']] ?? null) : null,
         'is_deleted' => (bool)($row['is_deleted'] ?? 0),
         'is_edited' => (bool)($row['is_edited'] ?? 0),
+        'is_pinned' => (bool)($row['is_pinned'] ?? 0),
+        'pinned_at' => $row['pinned_at'] ?? null,
         'created_at' => $row['created_at']
     ];
+    
+    if ($msg['is_pinned']) {
+        $pinned[] = $msg;
+    } else {
+        $regular[] = $msg;
+    }
 }
 
-// Reverse if initial load
+// Reverse regular messages if initial load, keep pinned at top
 if ($last_id == 0) {
-    $formatted = array_reverse($formatted);
+    $regular = array_reverse($regular);
+    $formatted = array_merge($pinned, $regular);
+} else {
+    $formatted = array_merge($pinned, $regular);
 }
 
-echo json_encode(['messages' => $formatted]);
+echo json_encode(['messages' => $formatted, 'is_admin' => $is_admin]);
 ?>
