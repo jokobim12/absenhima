@@ -41,10 +41,16 @@ if (mysqli_num_rows($checkEdit) == 0) {
     mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN is_edited TINYINT(1) DEFAULT 0 AFTER is_deleted");
 }
 
+// Cek kolom image_url
+$checkImg = mysqli_query($conn, "SHOW COLUMNS FROM forum_messages LIKE 'image_url'");
+if (mysqli_num_rows($checkImg) == 0) {
+    mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN image_url VARCHAR(255) DEFAULT NULL AFTER message");
+}
+
 // Ambil pesan
 if ($last_id > 0) {
     $stmt = mysqli_prepare($conn, "
-        SELECT m.id, m.user_id, m.message, m.reply_to, m.is_deleted, m.is_edited, m.created_at, u.nama, u.picture 
+        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.created_at, u.nama, u.picture 
         FROM forum_messages m 
         JOIN users u ON m.user_id = u.id 
         WHERE m.id > ?
@@ -53,7 +59,7 @@ if ($last_id > 0) {
     mysqli_stmt_bind_param($stmt, "i", $last_id);
 } else {
     $result = mysqli_query($conn, "
-        SELECT m.id, m.user_id, m.message, m.reply_to, m.is_deleted, m.is_edited, m.created_at, u.nama, u.picture 
+        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.created_at, u.nama, u.picture 
         FROM forum_messages m 
         JOIN users u ON m.user_id = u.id 
         ORDER BY m.id DESC
@@ -104,6 +110,7 @@ foreach ($messages as $row) {
         'nama' => $row['nama'],
         'picture' => $row['picture'],
         'message' => htmlspecialchars($row['message']),
+        'image_url' => $row['image_url'] ?? null,
         'reply_to' => $row['reply_to'],
         'reply_info' => $row['reply_to'] ? ($reply_data[$row['reply_to']] ?? null) : null,
         'is_deleted' => (bool)($row['is_deleted'] ?? 0),

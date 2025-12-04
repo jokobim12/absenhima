@@ -52,6 +52,7 @@ $languages = getAvailableLanguages();
     <style>
         body { background-color: <?= $s['color_background'] ?? '#f8fafc' ?>; }
     </style>
+    <link rel="icon" type="image/png" href="img/logo.jpg">
 </head>
 <body class="min-h-screen flex flex-col">
 

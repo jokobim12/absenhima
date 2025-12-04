@@ -3,13 +3,20 @@ include "auth.php";
 include "../config/koneksi.php";
 
 // Basic stats
-$total_users = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM users"))['c'];
-$total_events = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM events"))['c'];
-$total_absen = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM absen"))['c'];
+$total_users = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM users"))['c'] ?? 0;
+$total_events = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM events"))['c'] ?? 0;
+$total_absen = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM absen"))['c'] ?? 0;
 $event_aktif = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM events WHERE status='open' LIMIT 1"));
 
-// Pending permissions count
-$pending_permissions = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM permissions WHERE status='pending'"))['c'] ?? 0;
+// Pending permissions count - check if table exists first
+$pending_permissions = 0;
+$check_table = mysqli_query($conn, "SHOW TABLES LIKE 'permissions'");
+if ($check_table && mysqli_num_rows($check_table) > 0) {
+    $result = mysqli_query($conn, "SELECT COUNT(*) as c FROM permissions WHERE status='pending'");
+    if ($result) {
+        $pending_permissions = mysqli_fetch_assoc($result)['c'] ?? 0;
+    }
+}
 
 // Attendance data for last 7 days
 $attendance_7days = mysqli_query($conn, "

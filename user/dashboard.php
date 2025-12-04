@@ -299,15 +299,79 @@ $languages = getAvailableLanguages();
                     <!-- Chat Input -->
                     <div class="p-4 border-t border-slate-100">
                         <div id="replyPreview"></div>
-                        <form id="chatForm" class="flex gap-2">
-                            <input type="text" id="chatInput" placeholder="Tulis pesan..." maxlength="1000"
-                                class="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-secondary focus:border-secondary outline-none transition text-sm">
-                            <button type="submit" class="px-4 py-2 bg-secondary text-white rounded-xl hover:bg-secondary/90 transition">
+                        <div id="imagePreview" class="hidden mb-2"></div>
+                        <div id="mentionDropdown" class="hidden absolute bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto z-50"></div>
+                        <form id="chatForm" class="flex gap-2 items-end">
+                            <div class="flex gap-1">
+                                <!-- Emoji Picker Button -->
+                                <button type="button" id="emojiBtn" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Emoji">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </button>
+                                <!-- Image Upload Button -->
+                                <label class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer" title="Kirim Gambar">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <input type="file" id="imageInput" accept="image/*" class="hidden">
+                                </label>
+                            </div>
+                            <div class="flex-1 relative">
+                                <input type="text" id="chatInput" placeholder="Tulis pesan... (@ untuk tag)" maxlength="2000"
+                                    class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-secondary focus:border-secondary outline-none transition text-sm">
+                            </div>
+                            <button type="submit" id="sendBtn" class="px-4 py-2 bg-secondary text-white rounded-xl hover:bg-secondary/90 transition">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
                                 </svg>
                             </button>
                         </form>
+                        <!-- Emoji Picker Dropdown -->
+                        <div id="emojiPicker" class="hidden absolute bottom-20 left-4 bg-white border border-slate-200 rounded-xl shadow-lg p-3 z-50">
+                            <div class="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😀</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😂</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😍</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🥰</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😊</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😎</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😢</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😭</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😤</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😡</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤔</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤗</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">👍</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">👎</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">👏</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🙏</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">💪</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">❤️</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">💔</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">💯</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🔥</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">✨</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🎉</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🎊</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🥳</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😴</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤣</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😇</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🙄</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😏</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤩</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😋</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤤</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😱</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🥺</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😳</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤪</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😜</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤭</button>
+                                <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🥶</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -778,9 +842,21 @@ $languages = getAvailableLanguages();
             </div>
         ` : '';
 
+        // Parse @mentions in message
+        const parseMentions = (text) => {
+            return text.replace(/@(\w+(?:\s\w+)*)/g, '<span class="text-blue-500 font-medium">@$1</span>');
+        };
+        
+        // Image HTML
+        const imageHtml = (!isDeleted && msg.image_url) ? `
+            <div class="mt-2 mb-1">
+                <img src="../${msg.image_url}" alt="Image" class="max-w-xs rounded-lg cursor-pointer hover:opacity-90 transition" onclick="openImageModal('../${msg.image_url}')">
+            </div>
+        ` : '';
+        
         const messageContent = isDeleted 
             ? `<p class="text-sm italic ${isMe ? 'text-white/70' : 'text-slate-400'}">Pesan telah dihapus</p>`
-            : `<p class="text-sm break-words whitespace-pre-wrap" id="msg-text-${msg.id}">${msg.message}</p>`;
+            : `${msg.message ? `<p class="text-sm break-words whitespace-pre-wrap" id="msg-text-${msg.id}">${parseMentions(msg.message)}</p>` : ''}${imageHtml}`;
 
         const editedLabel = (isEdited && !isDeleted) ? `<span class="text-xs ${isMe ? 'text-white/50' : 'text-slate-400'} ml-1">· diedit</span>` : '';
         
@@ -972,10 +1048,11 @@ $languages = getAvailableLanguages();
         }
     }
 
-    async function sendMessage(message) {
+    async function sendMessage(message, imageUrl = null) {
         try {
             const body = { message: message };
             if (replyTo) body.reply_to = replyTo.id;
+            if (imageUrl) body.image_url = imageUrl;
             
             const res = await fetch(`${BASE_URL}/forum_send.php`, {
                 method: 'POST',
@@ -1002,24 +1079,210 @@ $languages = getAvailableLanguages();
         const input = document.getElementById('chatInput');
         const message = input.value.trim();
         
-        if (message) {
+        if (message || pendingImage) {
             input.disabled = true;
+            document.getElementById('sendBtn').disabled = true;
             let success;
             
             if (editingId) {
                 success = await editMessage(editingId, message);
             } else {
-                success = await sendMessage(message);
+                success = await sendMessage(message, pendingImage);
             }
             
             if (success) {
                 input.value = '';
+                cancelImage();
                 await loadMessages();
             }
             input.disabled = false;
+            document.getElementById('sendBtn').disabled = false;
             input.focus();
         }
     });
+
+    // Image upload handling
+    let pendingImage = null;
+    const imageInput = document.getElementById('imageInput');
+    const imagePreview = document.getElementById('imagePreview');
+    
+    imageInput.addEventListener('change', async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            alert('Hanya file gambar yang diperbolehkan');
+            return;
+        }
+        
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Ukuran gambar maksimal 5MB');
+            return;
+        }
+        
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            imagePreview.innerHTML = `
+                <div class="relative inline-block">
+                    <img src="${e.target.result}" class="h-20 rounded-lg border border-slate-200">
+                    <button type="button" onclick="cancelImage()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            imagePreview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+        
+        // Upload image
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        try {
+            const res = await fetch(`${BASE_URL}/forum_upload.php`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                pendingImage = data.image_url;
+            } else {
+                alert(data.error || 'Gagal upload gambar');
+                cancelImage();
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('Gagal upload gambar');
+            cancelImage();
+        }
+        
+        imageInput.value = '';
+    });
+    
+    function cancelImage() {
+        pendingImage = null;
+        imagePreview.innerHTML = '';
+        imagePreview.classList.add('hidden');
+    }
+    
+    // Emoji picker
+    const emojiBtn = document.getElementById('emojiBtn');
+    const emojiPicker = document.getElementById('emojiPicker');
+    
+    emojiBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        emojiPicker.classList.toggle('hidden');
+    });
+    
+    document.querySelectorAll('.emoji-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const input = document.getElementById('chatInput');
+            const emoji = this.textContent;
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            input.value = input.value.substring(0, start) + emoji + input.value.substring(end);
+            input.focus();
+            input.selectionStart = input.selectionEnd = start + emoji.length;
+            emojiPicker.classList.add('hidden');
+        });
+    });
+    
+    document.addEventListener('click', function(e) {
+        if (!emojiPicker.contains(e.target) && e.target !== emojiBtn) {
+            emojiPicker.classList.add('hidden');
+        }
+        if (!mentionDropdown.contains(e.target)) {
+            mentionDropdown.classList.add('hidden');
+        }
+    });
+    
+    // Mention autocomplete
+    const mentionDropdown = document.getElementById('mentionDropdown');
+    let mentionSearch = '';
+    let mentionStart = -1;
+    
+    document.getElementById('chatInput').addEventListener('input', async function(e) {
+        const value = this.value;
+        const cursorPos = this.selectionStart;
+        
+        // Find @ before cursor
+        let atPos = -1;
+        for (let i = cursorPos - 1; i >= 0; i--) {
+            if (value[i] === '@') {
+                atPos = i;
+                break;
+            }
+            if (value[i] === ' ' && i < cursorPos - 1) break;
+        }
+        
+        if (atPos >= 0) {
+            mentionSearch = value.substring(atPos + 1, cursorPos);
+            mentionStart = atPos;
+            
+            if (mentionSearch.length >= 1) {
+                try {
+                    const res = await fetch(`${BASE_URL}/forum_users.php?q=${encodeURIComponent(mentionSearch)}`);
+                    const data = await res.json();
+                    
+                    if (data.users && data.users.length > 0) {
+                        mentionDropdown.innerHTML = data.users.map(u => `
+                            <div class="flex items-center gap-2 px-3 py-2 hover:bg-slate-100 cursor-pointer mention-item" data-nama="${u.nama}">
+                                <img src="${u.picture ? (u.picture.startsWith('http') ? u.picture : '../' + u.picture) : '../uploads/profiles/default.png'}" class="w-6 h-6 rounded-full">
+                                <span class="text-sm">${u.nama}</span>
+                            </div>
+                        `).join('');
+                        
+                        const inputRect = this.getBoundingClientRect();
+                        mentionDropdown.style.left = inputRect.left + 'px';
+                        mentionDropdown.style.bottom = (window.innerHeight - inputRect.top + 5) + 'px';
+                        mentionDropdown.style.width = inputRect.width + 'px';
+                        mentionDropdown.classList.remove('hidden');
+                        
+                        document.querySelectorAll('.mention-item').forEach(item => {
+                            item.addEventListener('click', function() {
+                                const nama = this.dataset.nama;
+                                const input = document.getElementById('chatInput');
+                                const before = input.value.substring(0, mentionStart);
+                                const after = input.value.substring(input.selectionStart);
+                                input.value = before + '@' + nama + ' ' + after;
+                                input.focus();
+                                mentionDropdown.classList.add('hidden');
+                            });
+                        });
+                    } else {
+                        mentionDropdown.classList.add('hidden');
+                    }
+                } catch (err) {
+                    console.error('Mention search error:', err);
+                }
+            } else {
+                mentionDropdown.classList.add('hidden');
+            }
+        } else {
+            mentionDropdown.classList.add('hidden');
+        }
+    });
+    
+    // Image modal
+    function openImageModal(src) {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4';
+        modal.onclick = () => modal.remove();
+        modal.innerHTML = `
+            <img src="${src}" class="max-w-full max-h-full rounded-lg">
+            <button class="absolute top-4 right-4 text-white hover:text-gray-300">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        `;
+        document.body.appendChild(modal);
+    }
+    window.openImageModal = openImageModal;
+    window.cancelImage = cancelImage;
 
     loadMessages();
     setInterval(() => { if (isPolling) loadMessages(); }, 2000);
