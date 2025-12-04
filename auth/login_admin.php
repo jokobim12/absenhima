@@ -1,17 +1,26 @@
 <?php
 session_start();
 include "../config/koneksi.php";
+include "../config/helpers.php";
 
 $error = "";
 
 if(isset($_POST['login'])){
-    $username = $_POST['username'];
+    verifyCsrfOrDie();
+    $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    $q = mysqli_query($conn, "SELECT * FROM admin WHERE username='$username'");
-    $d = mysqli_fetch_assoc($q);
+    // Prepared statement untuk mencegah SQL Injection
+    $stmt = mysqli_prepare($conn, "SELECT * FROM admin WHERE username = ?");
+    mysqli_stmt_bind_param($stmt, "s", $username);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $d = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
 
     if($d && password_verify($password, $d['password'])){
+        // Regenerate session ID untuk mencegah session fixation
+        session_regenerate_id(true);
         $_SESSION['admin_id'] = $d['id'];
         header("Location: ../admin/index.php");
         exit;
@@ -48,6 +57,7 @@ if(isset($_POST['login'])){
         <?php endif; ?>
 
         <form method="POST" class="space-y-4">
+            <?= csrfField() ?>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
                 <input type="text" name="username" required 

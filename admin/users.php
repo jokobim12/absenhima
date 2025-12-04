@@ -1,20 +1,42 @@
 <?php
 include "auth.php";
 include "../config/koneksi.php";
+include "../config/helpers.php";
 
-if(isset($_GET['delete'])){
-    $id = intval($_GET['delete']);
-    mysqli_query($conn, "DELETE FROM absen WHERE user_id='$id'");
-    mysqli_query($conn, "DELETE FROM users WHERE id='$id'");
+// Handle delete dengan CSRF protection
+if(isset($_POST['delete'])){
+    verifyCsrfOrDie();
+    $id = intval($_POST['delete']);
+    
+    // Prepared statement untuk delete absen
+    $stmt = mysqli_prepare($conn, "DELETE FROM absen WHERE user_id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
+    // Prepared statement untuk delete user
+    $stmt = mysqli_prepare($conn, "DELETE FROM users WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
     header("Location: users.php?msg=deleted");
     exit;
 }
 
+// Handle update dengan CSRF protection
 if(isset($_POST['update'])){
+    verifyCsrfOrDie();
     $id = intval($_POST['id']);
-    $kelas = mysqli_real_escape_string($conn, $_POST['kelas']);
-    $semester = mysqli_real_escape_string($conn, $_POST['semester']);
-    mysqli_query($conn, "UPDATE users SET kelas='$kelas', semester='$semester' WHERE id='$id'");
+    $kelas = trim($_POST['kelas']);
+    $semester = trim($_POST['semester']);
+    
+    // Prepared statement untuk update user
+    $stmt = mysqli_prepare($conn, "UPDATE users SET kelas = ?, semester = ? WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "ssi", $kelas, $semester, $id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
     header("Location: users.php?msg=updated");
     exit;
 }
@@ -94,9 +116,11 @@ $total = mysqli_num_rows($users);
                                     <div class="flex items-center gap-2">
                                         <button onclick="openEdit(<?= $row['id'] ?>, '<?= htmlspecialchars($row['nama']) ?>', '<?= htmlspecialchars($row['kelas']) ?>', '<?= htmlspecialchars($row['semester']) ?>')" 
                                             class="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition">Edit</button>
-                                        <a href="users.php?delete=<?= $row['id'] ?>" 
-                                           onclick="return confirm('Hapus user ini?')"
-                                           class="px-3 py-1.5 bg-red-100 text-red-600 text-sm rounded-lg hover:bg-red-200 transition">Hapus</a>
+                                        <form method="POST" class="inline" onsubmit="return confirm('Hapus user ini?')">
+                                            <?= csrfField() ?>
+                                            <button type="submit" name="delete" value="<?= $row['id'] ?>"
+                                               class="px-3 py-1.5 bg-red-100 text-red-600 text-sm rounded-lg hover:bg-red-200 transition">Hapus</button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -122,6 +146,7 @@ $total = mysqli_num_rows($users);
             <h3 class="text-lg font-bold text-gray-900 mb-1">Edit User</h3>
             <p id="editName" class="text-gray-500 mb-4"></p>
             <form method="POST">
+                <?= csrfField() ?>
                 <input type="hidden" name="id" id="editId">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Kelas</label>

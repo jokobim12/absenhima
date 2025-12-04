@@ -1,8 +1,12 @@
 <?php
 include "auth.php";
 include "../config/koneksi.php";
+include "../config/ratelimit.php";
 
-$user_id = $_SESSION['user_id'];
+// Rate limit: max 10 submit attempts per menit
+rateLimitPageOrDie('submit_absen', 10, 60);
+
+$user_id = intval($_SESSION['user_id']);
 $token = isset($_GET['token']) ? $_GET['token'] : '';
 
 $success = false;
@@ -11,33 +15,47 @@ $message = "";
 if(empty($token)){
     $message = "Token tidak ditemukan.";
 } else {
-    $q = mysqli_query($conn, "
-       SELECT * FROM tokens 
-       WHERE token='$token' AND expired_at > NOW()
-       ORDER BY id DESC LIMIT 1
-    ");
-    $tk = mysqli_fetch_assoc($q);
+    // Prepared statement untuk cek token
+    $stmt = mysqli_prepare($conn, "SELECT * FROM tokens WHERE token = ? AND expired_at > NOW() ORDER BY id DESC LIMIT 1");
+    mysqli_stmt_bind_param($stmt, "s", $token);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $tk = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
 
     if(!$tk){
         $message = "Token tidak valid atau sudah kadaluarsa.";
     } else {
-        $event_id = $tk['event_id'];
-        $ev = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM events WHERE id='$event_id'"));
+        $event_id = intval($tk['event_id']);
+        
+        // Prepared statement untuk cek event
+        $stmt = mysqli_prepare($conn, "SELECT * FROM events WHERE id = ?");
+        mysqli_stmt_bind_param($stmt, "i", $event_id);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $ev = mysqli_fetch_assoc($result);
+        mysqli_stmt_close($stmt);
 
         if(!$ev || $ev['status'] != 'open'){
             $message = "Event sudah ditutup.";
         } else {
-            $cek = mysqli_query($conn, "
-               SELECT * FROM absen WHERE user_id='$user_id' AND event_id='$event_id'
-            ");
+            // Prepared statement untuk cek absen existing
+            $stmt = mysqli_prepare($conn, "SELECT * FROM absen WHERE user_id = ? AND event_id = ?");
+            mysqli_stmt_bind_param($stmt, "ii", $user_id, $event_id);
+            mysqli_stmt_execute($stmt);
+            $result = mysqli_stmt_get_result($stmt);
+            mysqli_stmt_close($stmt);
 
-            if(mysqli_num_rows($cek) > 0){
+            if(mysqli_num_rows($result) > 0){
                 $message = "Kamu sudah absen untuk event ini.";
             } else {
-                mysqli_query($conn, "
-                   INSERT INTO absen(user_id, event_id, token_id)
-                   VALUES('$user_id', '$event_id', '{$tk['id']}')
-                ");
+                // Prepared statement untuk insert absen
+                $token_id = intval($tk['id']);
+                $stmt = mysqli_prepare($conn, "INSERT INTO absen(user_id, event_id, token_id) VALUES(?, ?, ?)");
+                mysqli_stmt_bind_param($stmt, "iii", $user_id, $event_id, $token_id);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+                
                 $success = true;
                 $message = "Absensi berhasil dicatat!";
                 $event_name = $ev['nama_event'];

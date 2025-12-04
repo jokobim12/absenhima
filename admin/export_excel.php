@@ -8,19 +8,28 @@ if($event_id == 0){
     die("Event ID tidak valid. <a href='absen.php'>Kembali</a>");
 }
 
-$event = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM events WHERE id='$event_id'"));
+// Prepared statement untuk get event
+$stmt = mysqli_prepare($conn, "SELECT * FROM events WHERE id = ?");
+mysqli_stmt_bind_param($stmt, "i", $event_id);
+mysqli_stmt_execute($stmt);
+$event = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
 
 if(!$event){
     die("Event tidak ditemukan. <a href='absen.php'>Kembali</a>");
 }
 
-$data = mysqli_query($conn, "
+// Prepared statement untuk get data absen
+$stmt = mysqli_prepare($conn, "
     SELECT u.nama, u.nim, u.kelas, u.semester, COALESCE(a.waktu, a.created_at) as waktu_absen
     FROM absen a
     JOIN users u ON a.user_id = u.id
-    WHERE a.event_id = '$event_id'
+    WHERE a.event_id = ?
     ORDER BY a.id ASC
 ");
+mysqli_stmt_bind_param($stmt, "i", $event_id);
+mysqli_stmt_execute($stmt);
+$data = mysqli_stmt_get_result($stmt);
 
 $filename = "Absensi_" . preg_replace('/[^A-Za-z0-9]/', '_', $event['nama_event']) . "_" . date('Ymd') . ".xls";
 

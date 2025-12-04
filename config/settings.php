@@ -1,47 +1,91 @@
 <?php
 /**
  * Helper functions untuk mengambil settings dari database
+ * Dengan session-based caching untuk performa
  */
 
-// Get single setting value
-function getSetting($key, $default = '') {
-    global $conn;
-    $key = mysqli_real_escape_string($conn, $key);
-    $result = mysqli_query($conn, "SELECT setting_value FROM settings WHERE setting_key = '$key' LIMIT 1");
-    if ($row = mysqli_fetch_assoc($result)) {
-        return $row['setting_value'] ?: $default;
-    }
-    return $default;
-}
+// Cache settings di session (5 menit)
+define('SETTINGS_CACHE_TTL', 300);
 
-// Get multiple settings by group
-function getSettingsByGroup($group) {
+/**
+ * Load all settings ke cache
+ */
+function loadSettingsCache() {
     global $conn;
-    $group = mysqli_real_escape_string($conn, $group);
-    $result = mysqli_query($conn, "SELECT * FROM settings WHERE setting_group = '$group' ORDER BY id");
-    $settings = [];
-    while ($row = mysqli_fetch_assoc($result)) {
-        $settings[$row['setting_key']] = $row;
+    
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
     }
-    return $settings;
-}
-
-// Get all settings as key-value pairs
-function getAllSettings() {
-    global $conn;
+    
+    // Cek apakah cache masih valid
+    if (isset($_SESSION['_settings_cache']) && 
+        isset($_SESSION['_settings_cache_time']) &&
+        (time() - $_SESSION['_settings_cache_time']) < SETTINGS_CACHE_TTL) {
+        return $_SESSION['_settings_cache'];
+    }
+    
+    // Load dari database
     $result = mysqli_query($conn, "SELECT setting_key, setting_value FROM settings");
     $settings = [];
     while ($row = mysqli_fetch_assoc($result)) {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
+    
+    // Simpan ke cache
+    $_SESSION['_settings_cache'] = $settings;
+    $_SESSION['_settings_cache_time'] = time();
+    
     return $settings;
 }
 
-// Update setting value
+/**
+ * Clear settings cache (panggil setelah update)
+ */
+function clearSettingsCache() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    unset($_SESSION['_settings_cache']);
+    unset($_SESSION['_settings_cache_time']);
+}
+
+// Get single setting value (dengan cache)
+function getSetting($key, $default = '') {
+    $cache = loadSettingsCache();
+    return isset($cache[$key]) && $cache[$key] !== '' ? $cache[$key] : $default;
+}
+
+// Get multiple settings by group (tanpa cache - untuk admin panel)
+function getSettingsByGroup($group) {
+    global $conn;
+    $stmt = mysqli_prepare($conn, "SELECT * FROM settings WHERE setting_group = ? ORDER BY id");
+    mysqli_stmt_bind_param($stmt, "s", $group);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $settings = [];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $settings[$row['setting_key']] = $row;
+    }
+    mysqli_stmt_close($stmt);
+    return $settings;
+}
+
+// Get all settings as key-value pairs (dengan cache)
+function getAllSettings() {
+    return loadSettingsCache();
+}
+
+// Update setting value (clear cache setelah update)
 function updateSetting($key, $value) {
     global $conn;
-    $key = mysqli_real_escape_string($conn, $key);
-    $value = mysqli_real_escape_string($conn, $value);
-    return mysqli_query($conn, "UPDATE settings SET setting_value = '$value' WHERE setting_key = '$key'");
+    $stmt = mysqli_prepare($conn, "UPDATE settings SET setting_value = ? WHERE setting_key = ?");
+    mysqli_stmt_bind_param($stmt, "ss", $value, $key);
+    $result = mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
+    // Clear cache agar perubahan langsung terlihat
+    clearSettingsCache();
+    
+    return $result;
 }
 ?>

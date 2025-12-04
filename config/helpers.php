@@ -3,6 +3,85 @@
  * Helper Functions
  */
 
+// ==================== CSRF Protection ====================
+
+/**
+ * Generate CSRF token dan simpan di session
+ */
+function generateCsrfToken() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    
+    return $_SESSION['csrf_token'];
+}
+
+/**
+ * Validate CSRF token
+ */
+function validateCsrfToken($token) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    
+    if (empty($_SESSION['csrf_token']) || empty($token)) {
+        return false;
+    }
+    
+    return hash_equals($_SESSION['csrf_token'], $token);
+}
+
+/**
+ * Generate hidden input field untuk CSRF
+ */
+function csrfField() {
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(generateCsrfToken()) . '">';
+}
+
+/**
+ * Verify CSRF atau die
+ */
+function verifyCsrfOrDie() {
+    $token = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
+    
+    if (!validateCsrfToken($token)) {
+        http_response_code(403);
+        die('CSRF token invalid. <a href="javascript:history.back()">Kembali</a>');
+    }
+}
+
+// ==================== Session Security ====================
+
+/**
+ * Secure session start dengan regenerate ID
+ */
+function secureSessionStart() {
+    if (session_status() === PHP_SESSION_NONE) {
+        // Set secure session parameters
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => '/',
+            'secure' => isset($_SERVER['HTTPS']),
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
+        session_start();
+    }
+}
+
+/**
+ * Regenerate session ID (panggil setelah login)
+ */
+function regenerateSession() {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
+}
+
 /**
  * Hitung semester otomatis berdasarkan NIM
  * 

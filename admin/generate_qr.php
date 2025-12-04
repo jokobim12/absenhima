@@ -9,28 +9,44 @@ if(!isset($_GET['id'])){
 
 $event_id = intval($_GET['id']);
 
-$event = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM events WHERE id='$event_id'"));
+// Prepared statement untuk get event
+$stmt = mysqli_prepare($conn, "SELECT * FROM events WHERE id = ?");
+mysqli_stmt_bind_param($stmt, "i", $event_id);
+mysqli_stmt_execute($stmt);
+$event = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
 
 if(!$event){
     die("Event tidak ditemukan.");
 }
 
-// Generate token baru setiap 5 detik
-$token_row = mysqli_fetch_assoc(mysqli_query($conn, "
-    SELECT * FROM tokens 
-    WHERE event_id='$event_id' AND expired_at > NOW() 
-    ORDER BY id DESC LIMIT 1
-"));
+// Prepared statement untuk cek token yang masih valid
+$stmt = mysqli_prepare($conn, "SELECT * FROM tokens WHERE event_id = ? AND expired_at > NOW() ORDER BY id DESC LIMIT 1");
+mysqli_stmt_bind_param($stmt, "i", $event_id);
+mysqli_stmt_execute($stmt);
+$token_row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
 
 if(!$token_row){
     $token = bin2hex(random_bytes(16));
     $expired_at = date('Y-m-d H:i:s', strtotime('+5 seconds'));
-    mysqli_query($conn, "INSERT INTO tokens(event_id, token, expired_at) VALUES('$event_id', '$token', '$expired_at')");
+    
+    $stmt = mysqli_prepare($conn, "INSERT INTO tokens(event_id, token, expired_at) VALUES(?, ?, ?)");
+    mysqli_stmt_bind_param($stmt, "iss", $event_id, $token, $expired_at);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
     $token_row = ['token' => $token, 'expired_at' => $expired_at];
 }
 
 $current_token = $token_row['token'];
-$peserta = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM absen WHERE event_id='$event_id'"))['c'];
+
+// Prepared statement untuk count peserta
+$stmt = mysqli_prepare($conn, "SELECT COUNT(*) as c FROM absen WHERE event_id = ?");
+mysqli_stmt_bind_param($stmt, "i", $event_id);
+mysqli_stmt_execute($stmt);
+$peserta = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['c'];
+mysqli_stmt_close($stmt);
 ?>
 <!DOCTYPE html>
 <html lang="id">

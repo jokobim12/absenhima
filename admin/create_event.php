@@ -1,10 +1,17 @@
 <?php
 include "auth.php";
 include "../config/koneksi.php";
+include "../config/helpers.php";
 
 if(isset($_POST['buat'])){
-    $nama = mysqli_real_escape_string($conn, $_POST['nama_event']);
-    mysqli_query($conn, "INSERT INTO events(nama_event, status) VALUES('$nama','closed')");
+    verifyCsrfOrDie();
+    $nama = trim($_POST['nama_event']);
+    
+    $stmt = mysqli_prepare($conn, "INSERT INTO events(nama_event, status) VALUES(?, 'closed')");
+    mysqli_stmt_bind_param($stmt, "s", $nama);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
     header("Location: events.php");
     exit;
 }
@@ -32,6 +39,7 @@ if(isset($_POST['buat'])){
             <div class="max-w-lg">
                 <div class="bg-white rounded-xl border border-gray-200 p-6">
                     <form method="POST" class="space-y-4">
+                        <?= csrfField() ?>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Nama Event</label>
                             <input type="text" name="nama_event" required placeholder="Contoh: Rapat Anggota 2025"

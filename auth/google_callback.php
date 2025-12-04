@@ -96,6 +96,11 @@ if (!isset($_GET['code'])) {
     showError("Kode otorisasi tidak ditemukan.");
 }
 
+// Buat redirect_uri dinamis (harus sama dengan yang digunakan saat login)
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'];
+$redirect_uri = $protocol . '://' . $host . '/absenhima/auth/google_callback.php';
+
 // Exchange code untuk access token
 $ch = curl_init('https://oauth2.googleapis.com/token');
 curl_setopt_array($ch, [
@@ -104,7 +109,7 @@ curl_setopt_array($ch, [
         'code'          => $_GET['code'],
         'client_id'     => GOOGLE_CLIENT_ID,
         'client_secret' => GOOGLE_CLIENT_SECRET,
-        'redirect_uri'  => GOOGLE_REDIRECT_URI,
+        'redirect_uri'  => $redirect_uri,
         'grant_type'    => 'authorization_code'
     ]),
     CURLOPT_RETURNTRANSFER => true,
@@ -140,7 +145,8 @@ $picture = $userInfo['picture'] ?? '';
 // Cek domain email - HANYA Politala yang boleh masuk
 $emailDomain = substr(strrchr($email, "@"), 1);
 if (!empty(ALLOWED_DOMAINS) && !in_array($emailDomain, ALLOWED_DOMAINS)) {
-    showError("Hanya akun email Politala (@politala.ac.id) yang diizinkan untuk login.");
+    header("Location: error_account.php");
+    exit;
 }
 
 // Extract NIM dan Nama dari data Google
@@ -187,6 +193,8 @@ if ($user) {
 }
 
 // Set session & langsung ke dashboard
+// Regenerate session ID untuk mencegah session fixation
+session_regenerate_id(true);
 $_SESSION['user_id'] = $user_id;
 $_SESSION['login_method'] = 'google';
 unset($_SESSION['oauth_state']);

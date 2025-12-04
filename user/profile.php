@@ -5,8 +5,12 @@ include "../config/helpers.php";
 include "../config/settings.php";
 include "../config/lang.php";
 
-$user_id = $_SESSION['user_id'];
-$user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE id='$user_id'"));
+$user_id = intval($_SESSION['user_id']);
+$stmt = mysqli_prepare($conn, "SELECT * FROM users WHERE id = ?");
+mysqli_stmt_bind_param($stmt, "i", $user_id);
+mysqli_stmt_execute($stmt);
+$user = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
 
 $semester = hitungSemester($user['nim']);
 $tahun_masuk = 2000 + intval(substr($user['nim'], 0, 2));
@@ -72,7 +76,10 @@ if(isset($_POST['remove_photo'])){
             unlink($old_file);
         }
     }
-    mysqli_query($conn, "UPDATE users SET picture = NULL WHERE id = '$user_id'");
+    $stmt = mysqli_prepare($conn, "UPDATE users SET picture = NULL WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $user_id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
     $user['picture'] = '';
     $success = "Foto profil berhasil dihapus.";
 }

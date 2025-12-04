@@ -1,19 +1,43 @@
 <?php
 include "auth.php";
 include "../config/koneksi.php";
+include "../config/helpers.php";
 
-// Handle delete
-if(isset($_GET['delete'])){
-    $id = intval($_GET['delete']);
-    // Delete related data first
-    mysqli_query($conn, "DELETE FROM absen WHERE event_id='$id'");
-    mysqli_query($conn, "DELETE FROM tokens WHERE event_id='$id'");
-    mysqli_query($conn, "DELETE FROM events WHERE id='$id'");
+// Handle delete dengan CSRF protection
+if(isset($_POST['delete'])){
+    verifyCsrfOrDie();
+    $id = intval($_POST['delete']);
+    
+    // Prepared statement untuk delete absen
+    $stmt = mysqli_prepare($conn, "DELETE FROM absen WHERE event_id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
+    // Prepared statement untuk delete tokens
+    $stmt = mysqli_prepare($conn, "DELETE FROM tokens WHERE event_id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
+    // Prepared statement untuk delete event
+    $stmt = mysqli_prepare($conn, "DELETE FROM events WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+    
     header("Location: events.php?msg=deleted");
     exit;
 }
 
-$events = mysqli_query($conn, "SELECT e.*, (SELECT COUNT(*) FROM absen WHERE event_id = e.id) as peserta_count FROM events e ORDER BY e.id DESC");
+// Optimized query dengan LEFT JOIN (lebih efisien dari subquery)
+$events = mysqli_query($conn, "
+    SELECT e.*, COUNT(a.id) as peserta_count 
+    FROM events e 
+    LEFT JOIN absen a ON a.event_id = e.id 
+    GROUP BY e.id 
+    ORDER BY e.id DESC
+");
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -130,21 +154,23 @@ $events = mysqli_query($conn, "SELECT e.*, (SELECT COUNT(*) FROM absen WHERE eve
                 <p class="font-semibold text-gray-900 mb-2" id="deleteEventName"></p>
                 <p class="text-red-600 text-sm mb-6" id="deleteWarning"></p>
             </div>
-            <div class="flex gap-3">
-                <button onclick="hideDeleteModal()" class="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">
+            <form method="POST" class="flex gap-3">
+                <?= csrfField() ?>
+                <input type="hidden" name="delete" id="deleteId" value="">
+                <button type="button" onclick="hideDeleteModal()" class="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">
                     Batal
                 </button>
-                <a href="#" id="deleteLink" class="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition text-center">
+                <button type="submit" class="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition text-center">
                     Ya, Hapus
-                </a>
-            </div>
+                </button>
+            </form>
         </div>
     </div>
 
     <script>
     function showDeleteModal(id, name, pesertaCount) {
         document.getElementById('deleteEventName').textContent = name;
-        document.getElementById('deleteLink').href = 'events.php?delete=' + id;
+        document.getElementById('deleteId').value = id;
         
         if(pesertaCount > 0) {
             document.getElementById('deleteWarning').textContent = '⚠️ Event ini memiliki ' + pesertaCount + ' data peserta yang juga akan dihapus!';

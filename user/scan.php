@@ -77,7 +77,8 @@
                 <div class="bg-white rounded-3xl p-6 shadow-2xl">
                     <div id="reader" class="rounded-2xl overflow-hidden mb-4"></div>
 
-                    <div id="status" class="hidden">
+                    <!-- Status: Processing -->
+                    <div id="status-processing" class="hidden">
                         <div class="bg-blue-50 rounded-xl p-6 text-center">
                             <div class="flex items-center justify-center mb-3">
                                 <svg class="animate-spin w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24">
@@ -90,7 +91,43 @@
                         </div>
                     </div>
 
-                    <p class="text-center text-slate-400 text-sm">
+                    <!-- Status: Success -->
+                    <div id="status-success" class="hidden">
+                        <div class="bg-green-50 rounded-xl p-6 text-center">
+                            <div class="flex items-center justify-center mb-3">
+                                <div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <p class="text-green-600 font-semibold text-lg">Absensi Berhasil!</p>
+                            <p id="success-event" class="text-green-500 text-sm"></p>
+                            <a href="dashboard.php" class="inline-block mt-4 px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+                                Kembali ke Dashboard
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Status: Error -->
+                    <div id="status-error" class="hidden">
+                        <div class="bg-red-50 rounded-xl p-6 text-center">
+                            <div class="flex items-center justify-center mb-3">
+                                <div class="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            <p class="text-red-600 font-semibold text-lg">Gagal!</p>
+                            <p id="error-message" class="text-red-500 text-sm"></p>
+                            <button onclick="resetScanner()" class="inline-block mt-4 px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700">
+                                Coba Lagi
+                            </button>
+                        </div>
+                    </div>
+
+                    <p id="scan-hint" class="text-center text-slate-400 text-sm">
                         QR code berubah setiap 5 detik, pastikan Anda scan dengan cepat
                     </p>
                 </div>
@@ -100,13 +137,62 @@
     </div>
 
 <script>
+var scanner = null;
+var isProcessing = false;
+
 function onScanSuccess(decodedText) {
-    document.getElementById('status').classList.remove('hidden');
+    if (isProcessing) return;
+    isProcessing = true;
+    
+    // Hide scanner, show processing
     document.getElementById('reader').style.display = 'none';
-    window.location = "submit_absen.php?token=" + decodedText;
+    document.getElementById('scan-hint').style.display = 'none';
+    document.getElementById('status-processing').classList.remove('hidden');
+    
+    // Stop scanner
+    if (scanner) {
+        scanner.clear();
+    }
+    
+    // Submit via AJAX
+    fetch('api_submit_absen.php?token=' + encodeURIComponent(decodedText))
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('status-processing').classList.add('hidden');
+            
+            if (data.success) {
+                document.getElementById('success-event').textContent = data.event_name + ' - ' + data.timestamp;
+                document.getElementById('status-success').classList.remove('hidden');
+            } else {
+                document.getElementById('error-message').textContent = data.message;
+                document.getElementById('status-error').classList.remove('hidden');
+            }
+        })
+        .catch(error => {
+            document.getElementById('status-processing').classList.add('hidden');
+            document.getElementById('error-message').textContent = 'Terjadi kesalahan jaringan. Silakan coba lagi.';
+            document.getElementById('status-error').classList.remove('hidden');
+        });
 }
 
-var scanner = new Html5QrcodeScanner("reader", { 
+function resetScanner() {
+    isProcessing = false;
+    document.getElementById('status-error').classList.add('hidden');
+    document.getElementById('status-success').classList.add('hidden');
+    document.getElementById('reader').style.display = 'block';
+    document.getElementById('scan-hint').style.display = 'block';
+    
+    // Reinitialize scanner
+    scanner = new Html5QrcodeScanner("reader", { 
+        fps: 10, 
+        qrbox: { width: 280, height: 280 },
+        aspectRatio: 1.0
+    });
+    scanner.render(onScanSuccess);
+}
+
+// Initialize scanner
+scanner = new Html5QrcodeScanner("reader", { 
     fps: 10, 
     qrbox: { width: 280, height: 280 },
     aspectRatio: 1.0

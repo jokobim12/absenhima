@@ -5,7 +5,7 @@ include "../config/helpers.php";
 include "../config/settings.php";
 include "../config/lang.php";
 
-$user_id = $_SESSION['user_id'];
+$user_id = intval($_SESSION['user_id']);
 
 // Handle language switch
 if (isset($_GET['lang'])) {
@@ -17,24 +17,44 @@ if (isset($_GET['lang'])) {
 // Get settings
 $s = getAllSettings();
 
-$user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE id='$user_id'"));
+// Prepared statement untuk get user
+$stmt = mysqli_prepare($conn, "SELECT * FROM users WHERE id = ?");
+mysqli_stmt_bind_param($stmt, "i", $user_id);
+mysqli_stmt_execute($stmt);
+$user = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+mysqli_stmt_close($stmt);
+
+// Query tanpa input user - aman
 $event = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM events WHERE status='open' LIMIT 1"));
 
 $semester_sekarang = hitungSemester($user['nim']);
 if ($user['semester'] != $semester_sekarang) {
-    mysqli_query($conn, "UPDATE users SET semester='$semester_sekarang' WHERE id='$user_id'");
+    $stmt = mysqli_prepare($conn, "UPDATE users SET semester = ? WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "si", $semester_sekarang, $user_id);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
     $user['semester'] = $semester_sekarang;
 }
 
-$riwayat = mysqli_query($conn, "
+// Prepared statement untuk get riwayat
+$stmt = mysqli_prepare($conn, "
     SELECT COALESCE(a.waktu, a.created_at) as waktu_absen, e.nama_event 
     FROM absen a 
     JOIN events e ON a.event_id = e.id 
-    WHERE a.user_id = '$user_id' 
+    WHERE a.user_id = ? 
     ORDER BY a.id DESC 
     LIMIT 10
 ");
-$total_hadir = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM absen WHERE user_id='$user_id'"))['c'];
+mysqli_stmt_bind_param($stmt, "i", $user_id);
+mysqli_stmt_execute($stmt);
+$riwayat = mysqli_stmt_get_result($stmt);
+
+// Prepared statement untuk count total hadir
+$stmt = mysqli_prepare($conn, "SELECT COUNT(*) as c FROM absen WHERE user_id = ?");
+mysqli_stmt_bind_param($stmt, "i", $user_id);
+mysqli_stmt_execute($stmt);
+$total_hadir = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt))['c'];
+mysqli_stmt_close($stmt);
 
 $has_picture = !empty($user['picture']);
 $picture_url = $has_picture ? (strpos($user['picture'], 'http') === 0 ? $user['picture'] : '../' . $user['picture']) : '';

@@ -9,10 +9,15 @@ require_once "../config/google.php";
 $state = bin2hex(random_bytes(16));
 $_SESSION['oauth_state'] = $state;
 
+// Buat redirect_uri dinamis berdasarkan URL akses saat ini
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'];
+$redirect_uri = $protocol . '://' . $host . '/absenhima/auth/google_callback.php';
+
 // Build Google OAuth URL
 $params = [
     'client_id'     => GOOGLE_CLIENT_ID,
-    'redirect_uri'  => GOOGLE_REDIRECT_URI,
+    'redirect_uri'  => $redirect_uri,
     'response_type' => 'code',
     'scope'         => 'openid email profile',
     'state'         => $state,

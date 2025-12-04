@@ -17,7 +17,7 @@ $settings = [
         'setting_key' => 'google_client_secret',
         'setting_value' => '',
         'setting_label' => 'Google Client Secret',
-        'setting_type' => 'password',
+        'setting_type' => 'text',
         'setting_group' => 'google'
     ],
     [

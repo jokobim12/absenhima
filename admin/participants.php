@@ -11,15 +11,24 @@ $event_info = null;
 $total = 0;
 
 if($event_id > 0){
-    $event_info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM events WHERE id='$event_id'"));
+    // Prepared statement untuk get event info
+    $stmt = mysqli_prepare($conn, "SELECT * FROM events WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $event_id);
+    mysqli_stmt_execute($stmt);
+    $event_info = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
     
-    $participants = mysqli_query($conn, "
+    // Prepared statement untuk get participants
+    $stmt = mysqli_prepare($conn, "
         SELECT u.nama, u.nim, u.kelas, u.semester, u.picture, COALESCE(a.waktu, a.created_at) as waktu_absen
         FROM absen a
         JOIN users u ON a.user_id = u.id
-        WHERE a.event_id = '$event_id'
+        WHERE a.event_id = ?
         ORDER BY a.id ASC
     ");
+    mysqli_stmt_bind_param($stmt, "i", $event_id);
+    mysqli_stmt_execute($stmt);
+    $participants = mysqli_stmt_get_result($stmt);
     $total = mysqli_num_rows($participants);
 }
 ?>
