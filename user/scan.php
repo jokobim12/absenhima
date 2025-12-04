@@ -75,7 +75,14 @@
             <!-- Right: Scanner -->
             <div class="order-1 lg:order-2">
                 <div class="bg-white rounded-3xl p-6 shadow-2xl">
-                    <div id="reader" class="rounded-2xl overflow-hidden mb-4"></div>
+                    <div class="relative">
+                        <div id="reader" class="rounded-2xl overflow-hidden mb-4"></div>
+                        <button id="switch-camera" onclick="switchCamera()" class="absolute bottom-6 right-3 z-10 w-10 h-10 bg-slate-800/80 hover:bg-slate-700 rounded-full flex items-center justify-center transition shadow-lg" title="Ganti Kamera">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                        </button>
+                    </div>
 
                     <!-- Status: Processing -->
                     <div id="status-processing" class="hidden">
@@ -140,6 +147,43 @@
 var scanner = null;
 var isProcessing = false;
 var userLocation = null;
+var currentCamera = 'environment'; // 'environment' = belakang, 'user' = depan
+var cameras = [];
+
+// Get available cameras
+Html5Qrcode.getCameras().then(devices => {
+    cameras = devices;
+    console.log('Available cameras:', cameras);
+}).catch(err => console.log('Camera error:', err));
+
+function switchCamera() {
+    if (isProcessing) return;
+    
+    // Toggle camera
+    currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
+    
+    // Restart scanner with new camera
+    if (scanner) {
+        scanner.clear().then(() => {
+            initScanner();
+        }).catch(err => {
+            console.log('Error clearing scanner:', err);
+            initScanner();
+        });
+    }
+}
+
+function initScanner() {
+    scanner = new Html5QrcodeScanner("reader", { 
+        fps: 10, 
+        qrbox: { width: 280, height: 280 },
+        aspectRatio: 1.0,
+        videoConstraints: {
+            facingMode: currentCamera
+        }
+    });
+    scanner.render(onScanSuccess);
+}
 
 // Try to get user location on page load
 if (navigator.geolocation) {
@@ -240,21 +284,11 @@ function resetScanner() {
     document.getElementById('scan-hint').style.display = 'block';
     
     // Reinitialize scanner
-    scanner = new Html5QrcodeScanner("reader", { 
-        fps: 10, 
-        qrbox: { width: 280, height: 280 },
-        aspectRatio: 1.0
-    });
-    scanner.render(onScanSuccess);
+    initScanner();
 }
 
 // Initialize scanner
-scanner = new Html5QrcodeScanner("reader", { 
-    fps: 10, 
-    qrbox: { width: 280, height: 280 },
-    aspectRatio: 1.0
-});
-scanner.render(onScanSuccess);
+initScanner();
 </script>
 
 <style>
@@ -262,14 +296,28 @@ scanner.render(onScanSuccess);
     border-radius: 16px;
 }
 #reader__dashboard_section_csr button {
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+    background: #dc2626 !important;
     border: none !important;
     border-radius: 12px !important;
     padding: 12px 24px !important;
     font-weight: 600 !important;
+    color: white !important;
 }
 #reader__dashboard_section_csr button:hover {
-    background: linear-gradient(135deg, #334155 0%, #1e293b 100%) !important;
+    background: #b91c1c !important;
+}
+/* Hide dropdown & switch button on mobile, show on desktop */
+@media (max-width: 768px) {
+    #reader__dashboard_section_csr select,
+    #reader__dashboard_section_swaplink,
+    #reader select {
+        display: none !important;
+    }
+}
+@media (min-width: 769px) {
+    #switch-camera {
+        display: none !important;
+    }
 }
 </style>
 

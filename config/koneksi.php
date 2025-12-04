@@ -7,7 +7,7 @@
 // Cek environment variable dulu, fallback ke default untuk development
 $host = getenv('DB_HOST') ?: 'localhost';
 $user = getenv('DB_USER') ?: 'root';
-$pass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '1234'; // fallback untuk dev
+$pass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : ''; // Laragon default (empty)
 $db   = getenv('DB_NAME') ?: 'absenhima';
 
 $conn = mysqli_connect($host, $user, $pass, $db);
