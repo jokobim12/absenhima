@@ -16,8 +16,11 @@ if(isset($_POST['buat'])){
     $longitude = !empty($_POST['longitude']) ? floatval($_POST['longitude']) : null;
     $radius = !empty($_POST['radius']) ? intval($_POST['radius']) : 100;
     
-    $stmt = mysqli_prepare($conn, "INSERT INTO events(nama_event, deskripsi, lokasi, waktu_mulai, require_location, latitude, longitude, radius, status) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'closed')");
-    mysqli_stmt_bind_param($stmt, "ssssiidi", $nama, $deskripsi, $lokasi, $waktu_mulai, $require_location, $latitude, $longitude, $radius);
+    // Event besar (poin lebih banyak)
+    $is_big_event = isset($_POST['is_big_event']) ? 1 : 0;
+    
+    $stmt = mysqli_prepare($conn, "INSERT INTO events(nama_event, deskripsi, lokasi, waktu_mulai, require_location, latitude, longitude, radius, is_big_event, status) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 'closed')");
+    mysqli_stmt_bind_param($stmt, "ssssiidii", $nama, $deskripsi, $lokasi, $waktu_mulai, $require_location, $latitude, $longitude, $radius, $is_big_event);
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
     
@@ -70,6 +73,15 @@ if(isset($_POST['buat'])){
                                 <input type="datetime-local" name="waktu_mulai"
                                     class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
                             </div>
+                        </div>
+
+                        <!-- Event Besar -->
+                        <div class="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <input type="checkbox" name="is_big_event" id="is_big_event" class="w-5 h-5 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500">
+                            <label for="is_big_event" class="flex-1">
+                                <span class="font-medium text-gray-900">Event Besar ⭐</span>
+                                <p class="text-sm text-gray-500">Peserta dapat <strong>+10 poin</strong> (event biasa +5 poin)</p>
+                            </label>
                         </div>
 
                         <!-- GPS Section -->

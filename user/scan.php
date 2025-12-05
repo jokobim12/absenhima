@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scan QR - Absensi HIMA</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <style>
         .glass { backdrop-filter: blur(10px); }
     </style>
@@ -144,45 +144,55 @@
     </div>
 
 <script>
-var scanner = null;
+var html5QrCode = null;
 var isProcessing = false;
 var userLocation = null;
-var currentCamera = 'environment'; // 'environment' = belakang, 'user' = depan
-var cameras = [];
-
-// Get available cameras
-Html5Qrcode.getCameras().then(devices => {
-    cameras = devices;
-    console.log('Available cameras:', cameras);
-}).catch(err => console.log('Camera error:', err));
+var useBackCamera = true;
 
 function switchCamera() {
-    if (isProcessing) return;
+    if (isProcessing || !html5QrCode) return;
     
-    // Toggle camera
-    currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
+    useBackCamera = !useBackCamera;
     
-    // Restart scanner with new camera
-    if (scanner) {
-        scanner.clear().then(() => {
-            initScanner();
-        }).catch(err => {
-            console.log('Error clearing scanner:', err);
-            initScanner();
-        });
-    }
+    html5QrCode.stop().then(() => {
+        startCamera();
+    }).catch(err => {
+        startCamera();
+    });
+}
+
+function startCamera() {
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const facingMode = useBackCamera ? "environment" : "user";
+    
+    html5QrCode.start(
+        { facingMode: facingMode },
+        config,
+        onScanSuccess,
+        () => {} // Ignore no QR errors
+    ).catch(err => {
+        console.log('Camera error:', err);
+        document.getElementById('reader').innerHTML = `
+            <div class="text-center p-8">
+                <p class="text-red-500 mb-4">Gagal mengakses kamera</p>
+                <p class="text-slate-500 text-sm mb-4">${err}</p>
+                <button onclick="location.reload()" class="px-4 py-2 bg-blue-500 text-white rounded-lg">Refresh</button>
+            </div>`;
+    });
 }
 
 function initScanner() {
-    scanner = new Html5QrcodeScanner("reader", { 
-        fps: 10, 
-        qrbox: { width: 280, height: 280 },
-        aspectRatio: 1.0,
-        videoConstraints: {
-            facingMode: currentCamera
-        }
-    });
-    scanner.render(onScanSuccess);
+    try {
+        html5QrCode = new Html5Qrcode("reader");
+        startCamera();
+    } catch(e) {
+        document.getElementById('reader').innerHTML = `
+            <div class="text-center p-8">
+                <p class="text-red-500 mb-4">Error inisialisasi scanner</p>
+                <p class="text-slate-500 text-sm mb-4">${e.message}</p>
+                <button onclick="location.reload()" class="px-4 py-2 bg-blue-500 text-white rounded-lg">Refresh</button>
+            </div>`;
+    }
 }
 
 // Try to get user location on page load
@@ -212,8 +222,8 @@ function onScanSuccess(decodedText) {
     document.getElementById('status-processing').classList.remove('hidden');
     
     // Stop scanner
-    if (scanner) {
-        scanner.clear();
+    if (html5QrCode) {
+        html5QrCode.stop().catch(err => console.log('Stop error:', err));
     }
     
     // Build form data with location
@@ -281,6 +291,7 @@ function resetScanner() {
     document.getElementById('status-error').classList.add('hidden');
     document.getElementById('status-success').classList.add('hidden');
     document.getElementById('reader').style.display = 'block';
+    document.getElementById('reader').innerHTML = '';
     document.getElementById('scan-hint').style.display = 'block';
     
     // Reinitialize scanner

@@ -113,80 +113,120 @@ $picture_url = $has_picture ? (strpos($user['picture'], 'http') === 0 ? $user['p
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profil - Absensi HIMA</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        darkMode: 'class',
+        theme: {
+            extend: {
+                colors: {
+                    primary: '#6366f1',
+                    secondary: '#8b5cf6',
+                }
+            }
+        }
+    }
+    </script>
+    <script>
+    if (localStorage.getItem('darkMode') === 'true') {
+        document.documentElement.classList.add('dark');
+    }
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
     <style>
         .glass { backdrop-filter: blur(10px); }
         .cropper-view-box, .cropper-face { border-radius: 50%; }
+        /* Dark mode overrides */
+        .dark body { background: #0a0a0a !important; }
+        .dark .bg-gradient-to-br { background: #0a0a0a !important; }
+        .dark .bg-white { background: #1a1a1a !important; }
+        .dark .bg-white\/80 { background: rgba(26, 26, 26, 0.9) !important; }
+        .dark .bg-slate-50 { background: #111 !important; }
+        .dark .bg-slate-100 { background: #1a1a1a !important; }
+        .dark .border-slate-200 { border-color: #333 !important; }
+        .dark .border-slate-100 { border-color: #222 !important; }
+        .dark .text-slate-900 { color: #f1f1f1 !important; }
+        .dark .text-slate-800 { color: #e5e5e5 !important; }
+        .dark .text-slate-700 { color: #d4d4d4 !important; }
+        .dark .text-slate-600 { color: #a3a3a3 !important; }
+        .dark .text-slate-500 { color: #737373 !important; }
+        .dark .hover\:bg-slate-50:hover { background: #222 !important; }
+        .dark .hover\:bg-slate-100:hover { background: #333 !important; }
+        .dark input, .dark select, .dark textarea { background: #1a1a1a !important; border-color: #333 !important; color: #e5e5e5 !important; }
+        .dark .bg-green-50 { background: rgba(34, 197, 94, 0.1) !important; }
+        .dark .bg-orange-50 { background: rgba(249, 115, 22, 0.1) !important; }
+        .dark .bg-blue-50 { background: rgba(59, 130, 246, 0.1) !important; }
+        .dark .bg-purple-50 { background: rgba(168, 85, 247, 0.1) !important; }
     </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
 
     <!-- Navbar -->
     <nav class="bg-white/80 glass border-b border-slate-200 sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <a href="dashboard.php" class="p-2 hover:bg-slate-100 rounded-lg transition">
+                    <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                     </svg>
-                </div>
-                <span class="text-slate-900 font-bold text-lg"><?= __('my_profile') ?></span>
+                </a>
+                <span class="text-slate-900 font-bold"><?= __('my_profile') ?></span>
             </div>
-            <a href="dashboard.php" class="text-slate-500 hover:text-slate-900 flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-100 transition">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            <button onclick="toggleDarkMode()" id="darkModeBtn" class="text-slate-500 hover:text-slate-900 p-2 hover:bg-slate-100 rounded-lg transition" title="Dark Mode">
+                <svg id="sunIcon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
-                <?= __('back') ?>
-            </a>
+                <svg id="moonIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                </svg>
+            </button>
         </div>
     </nav>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid lg:grid-cols-3 gap-8">
-            
-            <!-- Profile Card -->
-            <div class="lg:col-span-1">
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center sticky top-24">
-                    <div class="relative inline-block mb-4">
-                        <?php if($has_picture): ?>
-                        <img src="<?= htmlspecialchars($picture_url) ?>" alt="Profile" 
-                            class="w-32 h-32 rounded-full border-4 border-slate-100 object-cover shadow-lg">
-                        <?php else: ?>
-                        <div class="w-32 h-32 bg-slate-100 rounded-full flex items-center justify-center">
-                            <svg class="w-16 h-16 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                            </svg>
-                        </div>
-                        <?php endif; ?>
-                        <button onclick="document.getElementById('fileInput').click()" class="absolute bottom-0 right-0 w-10 h-10 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-lg flex items-center justify-center transition">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                            </svg>
-                        </button>
+    <div class="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
+        
+        <!-- Profile Card - Compact for Mobile -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
+            <div class="flex items-center gap-4">
+                <div class="relative flex-shrink-0">
+                    <?php if($has_picture): ?>
+                    <img src="<?= htmlspecialchars($picture_url) ?>" alt="Profile" 
+                        class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-slate-100 object-cover shadow-lg">
+                    <?php else: ?>
+                    <div class="w-20 h-20 sm:w-24 sm:h-24 bg-slate-100 rounded-full flex items-center justify-center">
+                        <svg class="w-10 h-10 sm:w-12 sm:h-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
                     </div>
-                    <input type="file" id="fileInput" accept="image/*" class="hidden" onchange="openCropperModal(this)">
-
-                    <h2 class="text-xl font-bold text-slate-900"><?= htmlspecialchars($user['nama']) ?></h2>
-                    <p class="text-slate-500 text-sm mb-4"><?= htmlspecialchars($user['email']) ?></p>
-                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full">
-                        <span class="text-slate-600 text-sm">NIM:</span>
+                    <?php endif; ?>
+                    <button onclick="document.getElementById('fileInput').click()" class="absolute bottom-0 right-0 w-8 h-8 sm:w-9 sm:h-9 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-lg flex items-center justify-center transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <input type="file" id="fileInput" accept="image/*" class="hidden" onchange="openCropperModal(this)">
+                
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-lg sm:text-xl font-bold text-slate-900 truncate"><?= htmlspecialchars($user['nama']) ?></h2>
+                    <p class="text-slate-500 text-sm truncate"><?= htmlspecialchars($user['email']) ?></p>
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full mt-2 text-sm">
+                        <span class="text-slate-500">NIM:</span>
                         <span class="font-mono font-medium text-slate-900"><?= htmlspecialchars($user['nim']) ?></span>
                     </div>
-                    
                     <?php if($has_picture): ?>
-                    <form method="POST" class="mt-4">
-                        <button type="submit" name="remove_photo" onclick="return confirm('<?= __('delete_photo_confirm') ?>')" class="text-red-500 hover:text-red-600 text-sm font-medium">
+                    <form method="POST" class="mt-2">
+                        <button type="submit" name="remove_photo" onclick="return confirm('<?= __('delete_photo_confirm') ?>')" class="text-red-500 hover:text-red-600 text-xs font-medium">
                             <?= __('delete_photo') ?>
                         </button>
                     </form>
                     <?php endif; ?>
                 </div>
             </div>
+        </div>
 
-            <!-- Form Section -->
-            <div class="lg:col-span-2 space-y-6">
-                
+        <div class="space-y-4 sm:space-y-6">
+
                 <?php if($success): ?>
                 <div class="bg-green-50 border border-green-200 text-green-700 px-5 py-4 rounded-xl flex items-center gap-3">
                     <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,20 +251,103 @@ $picture_url = $has_picture ? (strpos($user['picture'], 'http') === 0 ? $user['p
                         <h3 class="font-bold text-slate-900"><?= __('academic_info') ?></h3>
                         <p class="text-slate-500 text-sm"><?= __('auto_calculated') ?></p>
                     </div>
+                    <div class="p-4 sm:p-6">
+                        <div class="grid grid-cols-3 gap-2 sm:gap-4">
+                            <div class="text-center p-3 sm:p-4 bg-slate-50 rounded-xl">
+                                <p class="text-slate-500 text-xs sm:text-sm mb-1"><?= __('entry_year') ?></p>
+                                <p class="text-xl sm:text-2xl font-bold text-slate-900"><?= $tahun_masuk ?></p>
+                            </div>
+                            <div class="text-center p-3 sm:p-4 bg-blue-50 rounded-xl">
+                                <p class="text-blue-600 text-xs sm:text-sm mb-1"><?= __('current_semester') ?></p>
+                                <p class="text-xl sm:text-2xl font-bold text-blue-600"><?= $semester ?></p>
+                            </div>
+                            <div class="text-center p-3 sm:p-4 bg-slate-50 rounded-xl">
+                                <p class="text-slate-500 text-xs sm:text-sm mb-1"><?= __('class') ?></p>
+                                <p class="text-xl sm:text-2xl font-bold text-slate-900"><?= ($user['kelas'] && $user['kelas'] != '-') ? htmlspecialchars($user['kelas']) : '-' ?></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attendance Heatmap -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <div>
+                            <h3 class="font-bold text-slate-900">Riwayat Kehadiran</h3>
+                            <p class="text-slate-500 text-sm">Visualisasi kehadiran tahun <span id="heatmapYear"><?= date('Y') ?></span></p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <a href="../api/export_attendance.php?year=<?= date('Y') ?>" target="_blank" id="exportPdfLink" class="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-secondary" title="Export PDF">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </a>
+                            <button onclick="changeHeatmapYear(-1)" class="p-1 hover:bg-slate-100 rounded">
+                                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <button onclick="changeHeatmapYear(1)" class="p-1 hover:bg-slate-100 rounded">
+                                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                     <div class="p-6">
-                        <div class="grid sm:grid-cols-3 gap-6">
-                            <div class="text-center p-4 bg-slate-50 rounded-xl">
-                                <p class="text-slate-500 text-sm mb-1"><?= __('entry_year') ?></p>
-                                <p class="text-3xl font-bold text-slate-900"><?= $tahun_masuk ?></p>
+                        <!-- Stats -->
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div class="text-center p-3 bg-green-50 rounded-xl">
+                                <p class="text-green-600 text-sm mb-1">Total Hadir</p>
+                                <p class="text-2xl font-bold text-green-600" id="heatmapTotal">0</p>
                             </div>
-                            <div class="text-center p-4 bg-blue-50 rounded-xl">
-                                <p class="text-blue-600 text-sm mb-1"><?= __('current_semester') ?></p>
-                                <p class="text-3xl font-bold text-blue-600"><?= $semester ?></p>
+                            <div class="text-center p-3 bg-orange-50 rounded-xl">
+                                <p class="text-orange-600 text-sm mb-1">Streak Saat Ini</p>
+                                <p class="text-2xl font-bold text-orange-600" id="heatmapStreak">0</p>
                             </div>
-                            <div class="text-center p-4 bg-slate-50 rounded-xl">
-                                <p class="text-slate-500 text-sm mb-1"><?= __('class') ?></p>
-                                <p class="text-3xl font-bold text-slate-900"><?= ($user['kelas'] && $user['kelas'] != '-') ? htmlspecialchars($user['kelas']) : '-' ?></p>
+                            <div class="text-center p-3 bg-purple-50 rounded-xl">
+                                <p class="text-purple-600 text-sm mb-1">Streak Terpanjang</p>
+                                <p class="text-2xl font-bold text-purple-600" id="heatmapLongest">0</p>
                             </div>
+                        </div>
+                        <!-- Heatmap Container -->
+                        <div class="overflow-x-auto">
+                            <div id="heatmapContainer" class="min-w-[700px]">
+                                <div class="flex gap-1 mb-2 text-xs text-slate-400 pl-8">
+                                    <span class="w-[54px] text-center">Jan</span>
+                                    <span class="w-[54px] text-center">Feb</span>
+                                    <span class="w-[54px] text-center">Mar</span>
+                                    <span class="w-[54px] text-center">Apr</span>
+                                    <span class="w-[42px] text-center">Mei</span>
+                                    <span class="w-[54px] text-center">Jun</span>
+                                    <span class="w-[54px] text-center">Jul</span>
+                                    <span class="w-[54px] text-center">Agu</span>
+                                    <span class="w-[54px] text-center">Sep</span>
+                                    <span class="w-[54px] text-center">Okt</span>
+                                    <span class="w-[54px] text-center">Nov</span>
+                                    <span class="w-[54px] text-center">Des</span>
+                                </div>
+                                <div class="flex">
+                                    <div class="flex flex-col gap-1 text-xs text-slate-400 pr-2 justify-around">
+                                        <span>Sen</span>
+                                        <span>Rab</span>
+                                        <span>Jum</span>
+                                    </div>
+                                    <div id="heatmapGrid" class="flex gap-[3px]">
+                                        <!-- Grid will be generated by JS -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Legend -->
+                        <div class="flex items-center justify-end gap-2 mt-4 text-xs text-slate-500">
+                            <span>Sedikit</span>
+                            <div class="w-3 h-3 rounded-sm bg-slate-200"></div>
+                            <div class="w-3 h-3 rounded-sm bg-green-200"></div>
+                            <div class="w-3 h-3 rounded-sm bg-green-400"></div>
+                            <div class="w-3 h-3 rounded-sm bg-green-600"></div>
+                            <div class="w-3 h-3 rounded-sm bg-green-800"></div>
+                            <span>Banyak</span>
                         </div>
                     </div>
                 </div>
@@ -248,6 +371,64 @@ $picture_url = $has_picture ? (strpos($user['picture'], 'http') === 0 ? $user['p
                             <?= __('save_changes') ?>
                         </button>
                     </form>
+                </div>
+
+                <!-- Wallpaper Forum -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100">
+                        <h3 class="font-bold text-slate-900">Wallpaper Forum Diskusi</h3>
+                        <p class="text-slate-500 text-sm">Kustomisasi tampilan latar belakang forum</p>
+                    </div>
+                    <div class="p-6">
+                        <!-- Preview -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Preview</label>
+                            <div id="wallpaperPreview" class="relative h-40 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                                <div id="wallpaperBg" class="absolute inset-0 bg-cover bg-center"></div>
+                                <div id="wallpaperOverlay" class="absolute inset-0 bg-black" style="opacity: 0.5;"></div>
+                                <div class="absolute inset-0 flex items-center justify-center p-4">
+                                    <div class="bg-white rounded-lg px-4 py-2 text-sm text-slate-600 shadow">
+                                        Contoh tampilan chat forum
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Gambar Wallpaper</label>
+                            <div class="flex gap-2">
+                                <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer transition text-slate-600">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span id="uploadLabel">Pilih Gambar</span>
+                                    <input type="file" id="wallpaperInput" accept="image/jpeg,image/png,image/webp" class="hidden">
+                                </label>
+                                <button type="button" id="removeWallpaperBtn" class="px-4 py-3 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl transition hidden">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <p class="text-slate-400 text-xs mt-1">Format: JPG, PNG, WEBP. Maksimal 5MB.</p>
+                        </div>
+                        
+                        <!-- Opacity Slider -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-slate-700 mb-2">
+                                Tingkat Gelap: <span id="opacityValue">50%</span>
+                            </label>
+                            <input type="range" id="opacitySlider" min="0" max="100" value="50" 
+                                class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-800">
+                            <div class="flex justify-between text-xs text-slate-400 mt-1">
+                                <span>Terang</span>
+                                <span>Gelap</span>
+                            </div>
+                        </div>
+                        
+                        <div id="wallpaperStatus" class="text-sm text-green-600 hidden"></div>
+                    </div>
                 </div>
 
             </div>
@@ -400,6 +581,258 @@ $picture_url = $has_picture ? (strpos($user['picture'], 'http') === 0 ? $user['p
             closeCropperModal();
         }
     });
+
+    // Wallpaper Settings
+    const wallpaperBg = document.getElementById('wallpaperBg');
+    const wallpaperOverlay = document.getElementById('wallpaperOverlay');
+    const wallpaperInput = document.getElementById('wallpaperInput');
+    const opacitySlider = document.getElementById('opacitySlider');
+    const opacityValue = document.getElementById('opacityValue');
+    const removeWallpaperBtn = document.getElementById('removeWallpaperBtn');
+    const wallpaperStatus = document.getElementById('wallpaperStatus');
+    const uploadLabel = document.getElementById('uploadLabel');
+
+    let currentWallpaper = null;
+    let debounceTimer = null;
+
+    // Load current settings
+    async function loadWallpaperSettings() {
+        try {
+            const res = await fetch('../api/forum_wallpaper.php');
+            const data = await res.json();
+            if (data.success) {
+                if (data.wallpaper) {
+                    currentWallpaper = data.wallpaper;
+                    wallpaperBg.style.backgroundImage = `url('../${data.wallpaper}')`;
+                    removeWallpaperBtn.classList.remove('hidden');
+                    uploadLabel.textContent = 'Ganti Gambar';
+                }
+                const opacityPercent = Math.round(data.opacity * 100);
+                opacitySlider.value = opacityPercent;
+                opacityValue.textContent = opacityPercent + '%';
+                wallpaperOverlay.style.opacity = data.opacity;
+            }
+        } catch (err) {
+            console.error('Error loading wallpaper settings:', err);
+        }
+    }
+
+    // Upload wallpaper
+    wallpaperInput.addEventListener('change', async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+            showStatus('Ukuran maksimal 5MB', 'red');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('wallpaper', file);
+
+        try {
+            uploadLabel.textContent = 'Mengupload...';
+            const res = await fetch('../api/forum_wallpaper.php', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                currentWallpaper = data.wallpaper;
+                wallpaperBg.style.backgroundImage = `url('../${data.wallpaper}')`;
+                removeWallpaperBtn.classList.remove('hidden');
+                uploadLabel.textContent = 'Ganti Gambar';
+                showStatus('Wallpaper berhasil diupload', 'green');
+            } else {
+                showStatus(data.error || 'Gagal upload', 'red');
+                uploadLabel.textContent = currentWallpaper ? 'Ganti Gambar' : 'Pilih Gambar';
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            showStatus('Gagal upload wallpaper', 'red');
+            uploadLabel.textContent = currentWallpaper ? 'Ganti Gambar' : 'Pilih Gambar';
+        }
+        
+        wallpaperInput.value = '';
+    });
+
+    // Opacity slider
+    opacitySlider.addEventListener('input', function() {
+        const opacity = this.value / 100;
+        opacityValue.textContent = this.value + '%';
+        wallpaperOverlay.style.opacity = opacity;
+        
+        // Debounce save
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            saveOpacity(opacity);
+        }, 500);
+    });
+
+    async function saveOpacity(opacity) {
+        try {
+            const formData = new FormData();
+            formData.append('opacity', opacity);
+            
+            await fetch('../api/forum_wallpaper.php', {
+                method: 'POST',
+                body: formData
+            });
+        } catch (err) {
+            console.error('Error saving opacity:', err);
+        }
+    }
+
+    // Remove wallpaper
+    removeWallpaperBtn.addEventListener('click', async function() {
+        if (!confirm('Hapus wallpaper?')) return;
+        
+        try {
+            const formData = new FormData();
+            formData.append('remove', '1');
+            
+            const res = await fetch('../api/forum_wallpaper.php', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                currentWallpaper = null;
+                wallpaperBg.style.backgroundImage = '';
+                removeWallpaperBtn.classList.add('hidden');
+                uploadLabel.textContent = 'Pilih Gambar';
+                showStatus('Wallpaper dihapus', 'green');
+            }
+        } catch (err) {
+            console.error('Error removing wallpaper:', err);
+            showStatus('Gagal menghapus', 'red');
+        }
+    });
+
+    function showStatus(message, color) {
+        wallpaperStatus.textContent = message;
+        wallpaperStatus.className = `text-sm text-${color}-600`;
+        wallpaperStatus.classList.remove('hidden');
+        setTimeout(() => {
+            wallpaperStatus.classList.add('hidden');
+        }, 3000);
+    }
+
+    // Load on page load
+    loadWallpaperSettings();
+
+    // ==================== ATTENDANCE HEATMAP ====================
+    let currentHeatmapYear = new Date().getFullYear();
+    
+    async function loadHeatmap(year) {
+        try {
+            const res = await fetch(`../api/attendance_heatmap.php?year=${year}`);
+            const data = await res.json();
+            
+            if (data.success) {
+                document.getElementById('heatmapYear').textContent = year;
+                document.getElementById('heatmapTotal').textContent = data.total;
+                document.getElementById('heatmapStreak').textContent = data.current_streak;
+                document.getElementById('heatmapLongest').textContent = data.longest_streak;
+                
+                renderHeatmap(year, data.attendance);
+            }
+        } catch (err) {
+            console.error('Error loading heatmap:', err);
+        }
+    }
+    
+    function renderHeatmap(year, attendance) {
+        const grid = document.getElementById('heatmapGrid');
+        grid.innerHTML = '';
+        
+        // Get first day of year
+        const startDate = new Date(year, 0, 1);
+        const endDate = new Date(year, 11, 31);
+        
+        // Adjust to start from Monday
+        const startDay = startDate.getDay();
+        const adjustedStart = new Date(startDate);
+        adjustedStart.setDate(adjustedStart.getDate() - (startDay === 0 ? 6 : startDay - 1));
+        
+        // Create weeks
+        let currentDate = new Date(adjustedStart);
+        let weekHtml = '';
+        let weeksHtml = '';
+        
+        while (currentDate <= endDate || currentDate.getDay() !== 1) {
+            const dateStr = currentDate.toISOString().split('T')[0];
+            const count = attendance[dateStr] || 0;
+            const isCurrentYear = currentDate.getFullYear() === year;
+            
+            let colorClass = 'bg-slate-100';
+            if (isCurrentYear && count > 0) {
+                if (count === 1) colorClass = 'bg-green-200';
+                else if (count === 2) colorClass = 'bg-green-400';
+                else if (count === 3) colorClass = 'bg-green-600';
+                else colorClass = 'bg-green-800';
+            } else if (!isCurrentYear) {
+                colorClass = 'bg-slate-50';
+            }
+            
+            const tooltip = isCurrentYear ? `${count} kehadiran pada ${dateStr}` : '';
+            weekHtml += `<div class="w-3 h-3 rounded-sm ${colorClass} ${isCurrentYear ? 'cursor-pointer hover:ring-2 hover:ring-slate-400' : 'opacity-30'}" title="${tooltip}"></div>`;
+            
+            // If Sunday (end of week)
+            if (currentDate.getDay() === 0) {
+                weeksHtml += `<div class="flex flex-col gap-[3px]">${weekHtml}</div>`;
+                weekHtml = '';
+            }
+            
+            currentDate.setDate(currentDate.getDate() + 1);
+            
+            // Safety break
+            if (currentDate.getFullYear() > year + 1) break;
+        }
+        
+        // Add remaining days
+        if (weekHtml) {
+            weeksHtml += `<div class="flex flex-col gap-[3px]">${weekHtml}</div>`;
+        }
+        
+        grid.innerHTML = weeksHtml;
+    }
+    
+    function changeHeatmapYear(delta) {
+        const newYear = currentHeatmapYear + delta;
+        if (newYear >= 2020 && newYear <= new Date().getFullYear()) {
+            currentHeatmapYear = newYear;
+            loadHeatmap(currentHeatmapYear);
+            document.getElementById('exportPdfLink').href = `../api/export_attendance.php?year=${newYear}`;
+        }
+    }
+    
+    // Load heatmap on page load
+    loadHeatmap(currentHeatmapYear);
+
+    // ==================== DARK MODE ====================
+    function toggleDarkMode() {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        document.body.style.background = isDark ? '#0a0a0a' : '';
+        
+        // Toggle icons
+        document.getElementById('sunIcon').classList.toggle('hidden', !isDark);
+        document.getElementById('moonIcon').classList.toggle('hidden', isDark);
+    }
+    
+    // Initialize dark mode icons
+    function initDarkModeIcons() {
+        const isDark = document.documentElement.classList.contains('dark');
+        document.getElementById('sunIcon').classList.toggle('hidden', !isDark);
+        document.getElementById('moonIcon').classList.toggle('hidden', isDark);
+        if (isDark) {
+            document.body.style.background = '#0a0a0a';
+        }
+    }
+    initDarkModeIcons();
     </script>
 
 </body>

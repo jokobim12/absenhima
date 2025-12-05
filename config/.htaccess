@@ -1,0 +1,13 @@
+# Deny direct access to config files
+# Files can only be included by PHP, not accessed directly
+
+<FilesMatch "^(koneksi|google|helpers|settings|lang|ratelimit|push_helper|gamification)\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Allow migration files to be accessed (for setup)
+<FilesMatch "^migrate.*\.php$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>

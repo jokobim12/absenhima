@@ -1,0 +1,15 @@
+# Prevent PHP execution in uploads folder
+<FilesMatch "\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Prevent script execution
+Options -ExecCGI
+AddHandler cgi-script .php .pl .py .jsp .asp .sh .cgi
+
+# Only allow specific file types
+<FilesMatch "(?i)\.(jpg|jpeg|png|gif|webp|pdf|mp3|wav|ogg|mp4|webm)$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>

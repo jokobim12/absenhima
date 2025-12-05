@@ -40,25 +40,14 @@ if($event['status'] != 'open'){
     exit;
 }
 
-// Prepared statement untuk cek token yang masih valid
-$stmt = mysqli_prepare($conn, "SELECT token FROM tokens WHERE event_id = ? AND expired_at > NOW() ORDER BY id DESC LIMIT 1");
-mysqli_stmt_bind_param($stmt, "i", $event_id);
-mysqli_stmt_execute($stmt);
-$token_row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
-mysqli_stmt_close($stmt);
+// Selalu generate token baru setiap request (QR berubah setiap 5 detik)
+$token = bin2hex(random_bytes(16));
+$expired_at = date('Y-m-d H:i:s', strtotime('+6 seconds'));
 
-if(!$token_row){
-    // Generate token baru (expired dalam 5 detik)
-    $token = bin2hex(random_bytes(16));
-    $expired_at = date('Y-m-d H:i:s', strtotime('+5 seconds'));
-    
-    $stmt = mysqli_prepare($conn, "INSERT INTO tokens(event_id, token, expired_at) VALUES(?, ?, ?)");
-    mysqli_stmt_bind_param($stmt, "iss", $event_id, $token, $expired_at);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-} else {
-    $token = $token_row['token'];
-}
+$stmt = mysqli_prepare($conn, "INSERT INTO tokens(event_id, token, expired_at) VALUES(?, ?, ?)");
+mysqli_stmt_bind_param($stmt, "iss", $event_id, $token, $expired_at);
+mysqli_stmt_execute($stmt);
+mysqli_stmt_close($stmt);
 
 // Prepared statement untuk hitung peserta
 $stmt = mysqli_prepare($conn, "SELECT COUNT(*) as c FROM absen WHERE event_id = ?");

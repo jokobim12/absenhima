@@ -153,6 +153,7 @@ function generateQR(text) {
 
 generateQR("<?= $current_token ?>");
 
+// QR berubah setiap 3 detik untuk mencegah share QR (1 token = 1 orang)
 setInterval(function() {
     fetch('get_token.php?id=' + eventId)
         .then(response => response.json())
@@ -168,7 +169,7 @@ setInterval(function() {
             }
         })
         .catch(err => console.log(err));
-}, 5000);
+}, 3000);
 
 // Modal functions
 function showCloseModal() {

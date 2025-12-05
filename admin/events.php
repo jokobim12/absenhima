@@ -155,6 +155,11 @@ while($row = mysqli_fetch_assoc($events)) {
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <h3 class="font-semibold text-slate-800 text-lg truncate"><?= htmlspecialchars($d['nama_event']) ?></h3>
+                                        <?php if(!empty($d['is_big_event'])): ?>
+                                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                                            ⭐ +10 Poin
+                                        </span>
+                                        <?php endif; ?>
                                         <?php if($d['status'] == 'open'): ?>
                                         <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
                                             <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>

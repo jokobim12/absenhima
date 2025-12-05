@@ -56,8 +56,20 @@ if(empty($token)){
                 mysqli_stmt_execute($stmt);
                 mysqli_stmt_close($stmt);
                 
+                // Add points for attendance
+                $is_big = isset($ev['is_big_event']) && $ev['is_big_event'] ? true : false;
+                $points = $is_big ? 10 : 5;
+                $activity_type = $is_big ? 'attendance_big' : 'attendance';
+                $description = mysqli_real_escape_string($conn, 'Hadir di ' . ($is_big ? 'event besar: ' : 'event: ') . $ev['nama_event']);
+                
+                $check = $conn->query("SELECT id FROM point_history WHERE user_id = $user_id AND activity_type LIKE 'attendance%' AND reference_id = $event_id");
+                if ($check && $check->num_rows == 0) {
+                    $conn->query("INSERT INTO point_history (user_id, points, activity_type, description, reference_id) VALUES ($user_id, $points, '$activity_type', '$description', $event_id)");
+                    $conn->query("UPDATE users SET total_points = total_points + $points WHERE id = $user_id");
+                }
+                
                 $success = true;
-                $message = "Absensi berhasil dicatat!";
+                $message = "Absensi berhasil dicatat! +" . $points . " poin";
                 $event_name = $ev['nama_event'];
             }
         }

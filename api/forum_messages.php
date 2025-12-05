@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 
 include "../config/koneksi.php";
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) && !isset($_SESSION['admin_id'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
@@ -55,13 +55,20 @@ if (mysqli_num_rows($checkPin) == 0) {
     mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN pinned_at TIMESTAMP NULL DEFAULT NULL AFTER pinned_by");
 }
 
+// Cek kolom voice_url dan voice_duration
+$checkVoice = mysqli_query($conn, "SHOW COLUMNS FROM forum_messages LIKE 'voice_url'");
+if (mysqli_num_rows($checkVoice) == 0) {
+    mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN voice_url VARCHAR(255) DEFAULT NULL AFTER file_name");
+    mysqli_query($conn, "ALTER TABLE forum_messages ADD COLUMN voice_duration INT DEFAULT 0 AFTER voice_url");
+}
+
 // Cek apakah user adalah admin
 $is_admin = isset($_SESSION['admin_id']);
 
 // Ambil pesan
 if ($last_id > 0) {
     $stmt = mysqli_prepare($conn, "
-        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.is_pinned, m.pinned_at, m.created_at, u.nama, u.picture 
+        SELECT m.id, m.user_id, m.message, m.image_url, m.file_url, m.file_name, m.voice_url, m.voice_duration, m.reply_to, m.is_deleted, m.is_edited, m.is_pinned, m.pinned_at, m.created_at, u.nama, u.picture 
         FROM forum_messages m 
         JOIN users u ON m.user_id = u.id 
         WHERE m.id > ?
@@ -70,7 +77,7 @@ if ($last_id > 0) {
     mysqli_stmt_bind_param($stmt, "i", $last_id);
 } else {
     $result = mysqli_query($conn, "
-        SELECT m.id, m.user_id, m.message, m.image_url, m.reply_to, m.is_deleted, m.is_edited, m.is_pinned, m.pinned_at, m.created_at, u.nama, u.picture 
+        SELECT m.id, m.user_id, m.message, m.image_url, m.file_url, m.file_name, m.voice_url, m.voice_duration, m.reply_to, m.is_deleted, m.is_edited, m.is_pinned, m.pinned_at, m.created_at, u.nama, u.picture 
         FROM forum_messages m 
         JOIN users u ON m.user_id = u.id 
         ORDER BY m.is_pinned DESC, m.id DESC
@@ -125,6 +132,10 @@ foreach ($messages as $row) {
         'picture' => $row['picture'],
         'message' => htmlspecialchars($row['message']),
         'image_url' => $row['image_url'] ?? null,
+        'file_url' => $row['file_url'] ?? null,
+        'file_name' => $row['file_name'] ?? null,
+        'voice_url' => $row['voice_url'] ?? null,
+        'voice_duration' => (int)($row['voice_duration'] ?? 0),
         'reply_to' => $row['reply_to'],
         'reply_info' => $row['reply_to'] ? ($reply_data[$row['reply_to']] ?? null) : null,
         'is_deleted' => (bool)($row['is_deleted'] ?? 0),

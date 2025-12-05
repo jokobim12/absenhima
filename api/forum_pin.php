@@ -4,14 +4,17 @@ header('Content-Type: application/json');
 
 include "../config/koneksi.php";
 
-// Hanya admin yang bisa pin/unpin
-if (!isset($_SESSION['admin_id'])) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Hanya admin yang dapat melakukan pin pesan']);
+// Admin atau user bisa pin/unpin
+$is_admin = isset($_SESSION['admin_id']);
+$is_user = isset($_SESSION['user_id']);
+
+if (!$is_admin && !$is_user) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
-$admin_id = intval($_SESSION['admin_id']);
+$pinned_by_id = $is_admin ? intval($_SESSION['admin_id']) : intval($_SESSION['user_id']);
 $input = json_decode(file_get_contents('php://input'), true);
 
 if (!$input || empty($input['id'])) {
@@ -49,7 +52,7 @@ if ($action === 'pin') {
 
 if ($new_pinned) {
     $stmt = mysqli_prepare($conn, "UPDATE forum_messages SET is_pinned = 1, pinned_by = ?, pinned_at = NOW() WHERE id = ?");
-    mysqli_stmt_bind_param($stmt, "ii", $admin_id, $message_id);
+    mysqli_stmt_bind_param($stmt, "ii", $pinned_by_id, $message_id);
 } else {
     $stmt = mysqli_prepare($conn, "UPDATE forum_messages SET is_pinned = 0, pinned_by = NULL, pinned_at = NULL WHERE id = ?");
     mysqli_stmt_bind_param($stmt, "i", $message_id);

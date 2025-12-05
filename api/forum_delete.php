@@ -4,13 +4,16 @@ header('Content-Type: application/json');
 
 include "../config/koneksi.php";
 
-if (!isset($_SESSION['user_id'])) {
+$is_admin = isset($_SESSION['admin_id']);
+$is_user = isset($_SESSION['user_id']);
+
+if (!$is_admin && !$is_user) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
-$user_id = intval($_SESSION['user_id']);
+$user_id = $is_user ? intval($_SESSION['user_id']) : 0;
 $input = json_decode(file_get_contents('php://input'), true);
 
 if (!$input || empty($input['id'])) {
@@ -22,7 +25,7 @@ if (!$input || empty($input['id'])) {
 $message_id = intval($input['id']);
 $permanent = isset($input['permanent']) && $input['permanent'] === true;
 
-// Cek apakah pesan milik user ini
+// Cek apakah pesan ada
 $stmt = mysqli_prepare($conn, "SELECT id, user_id, is_deleted FROM forum_messages WHERE id = ?");
 mysqli_stmt_bind_param($stmt, "i", $message_id);
 mysqli_stmt_execute($stmt);
@@ -36,7 +39,8 @@ if (!$message) {
     exit;
 }
 
-if ($message['user_id'] != $user_id) {
+// Admin bisa hapus semua pesan, user hanya bisa hapus pesannya sendiri
+if (!$is_admin && $message['user_id'] != $user_id) {
     http_response_code(403);
     echo json_encode(['error' => 'Anda hanya bisa menghapus pesan sendiri']);
     exit;

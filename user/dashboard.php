@@ -76,9 +76,18 @@ $pending_perms = mysqli_fetch_assoc(mysqli_query($conn, "
 
 // Gamification data
 $user_badges = getUserBadges($conn, $user_id);
+checkDailyLogin($conn, $user_id); // Check and award daily login points
 $user_rank = getUserRank($conn, $user_id);
-$user_streak = $user['current_streak'] ?? 0;
-$user_longest_streak = $user['longest_streak'] ?? 0;
+$user_streak = $user['daily_streak'] ?? 0;
+$user_points = $user['total_points'] ?? 0;
+
+// Unpaid iuran
+$unpaid_iuran = $conn->query("
+    SELECT COUNT(*) as count, COALESCE(SUM(i.nominal), 0) as total
+    FROM iuran i
+    LEFT JOIN iuran_payments ip ON ip.iuran_id = i.id AND ip.user_id = $user_id
+    WHERE i.status = 'active' AND ip.id IS NULL
+")->fetch_assoc();
 
 // Colors from settings
 $color_primary = $s['color_primary'] ?? '#1e293b';
@@ -102,6 +111,7 @@ $languages = getAvailableLanguages();
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
     tailwind.config = {
+        darkMode: 'class',
         theme: {
             extend: {
                 colors: {
@@ -113,52 +123,113 @@ $languages = getAvailableLanguages();
         }
     }
     </script>
+    <script>
+    // Dark mode initialization
+    if (localStorage.getItem('darkMode') === 'true' || (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+    }
+    </script>
     <style>
         .glass { backdrop-filter: blur(10px); }
         body { background: linear-gradient(135deg, <?= $color_bg ?> 0%, #e2e8f0 100%); }
+        .break-words { word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; }
+        .dark body { background: #0a0a0a !important; }
+        html.dark { background: #0a0a0a; }
         .gradient-primary { background: linear-gradient(135deg, <?= $color_primary ?> 0%, <?= $color_primary ?>dd 100%); }
+        .reaction-btn { transition: transform 0.1s; }
+        .reaction-btn:hover { transform: scale(1.2); }
+        .reaction-btn.active { background: rgba(59, 130, 246, 0.2); }
+        /* Dark mode overrides for better contrast */
+        .dark .bg-white { background-color: #111111 !important; }
+        .dark .bg-slate-50 { background-color: #0a0a0a !important; }
+        .dark .bg-slate-100 { background-color: #1a1a1a !important; }
+        .dark .border-slate-200 { border-color: #2a2a2a !important; }
+        .dark .border-slate-100 { border-color: #1a1a1a !important; }
+        .dark .text-slate-900 { color: #ffffff !important; }
+        .dark .text-slate-700 { color: #e5e5e5 !important; }
+        .dark .text-slate-600 { color: #d4d4d4 !important; }
+        .dark .text-slate-500 { color: #a3a3a3 !important; }
+        .dark .text-slate-400 { color: #737373 !important; }
+        .dark .bg-white\/80 { background-color: rgba(17, 17, 17, 0.9) !important; }
+        .dark .hover\:bg-slate-100:hover { background-color: #2a2a2a !important; }
+        .dark .hover\:bg-slate-50:hover { background-color: #1a1a1a !important; }
+        .dark .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5) !important; }
+        .dark textarea, .dark input[type="text"] { background-color: #1a1a1a !important; border-color: #333 !important; color: #e5e5e5 !important; }
+        .dark textarea::placeholder, .dark input::placeholder { color: #666 !important; }
+        #chatInput { min-height: 40px; line-height: 1.4; }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen transition-colors duration-300">
 
     <!-- Navbar -->
     <nav class="bg-white/80 glass border-b border-slate-200 sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <div class="flex items-center gap-3">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4 flex justify-between items-center">
+            <div class="flex items-center gap-2 sm:gap-3">
                 <?php if (!empty($s['site_logo'])): ?>
-                <img src="../<?= htmlspecialchars($s['site_logo']) ?>" alt="Logo" class="w-10 h-10 object-contain">
+                <img src="../<?= htmlspecialchars($s['site_logo']) ?>" alt="Logo" class="w-8 h-8 sm:w-10 sm:h-10 object-contain">
                 <?php else: ?>
-                <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+                    <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
                     </svg>
                 </div>
                 <?php endif; ?>
-                <div>
-                    <span class="text-slate-900 font-bold text-lg"><?= htmlspecialchars($s['site_name'] ?? 'SADHATI') ?></span>
-                    <p class="text-slate-500 text-xs"><?= htmlspecialchars($s['site_tagline'] ?? 'Sistem Absensi') ?></p>
+                <div class="min-w-0">
+                    <span class="text-slate-900 font-bold text-sm sm:text-lg truncate block"><?= htmlspecialchars($s['site_name'] ?? 'SADHATI') ?></span>
+                    <p class="text-slate-500 text-xs hidden sm:block"><?= htmlspecialchars($s['site_tagline'] ?? 'Sistem Absensi') ?></p>
                 </div>
             </div>
-            <div class="flex items-center gap-2 sm:gap-4">
+            <div class="flex items-center gap-1 sm:gap-4">
+                <!-- Dark Mode Toggle -->
+                <button onclick="toggleDarkMode()" id="darkModeBtn" class="text-slate-500 hover:text-slate-900 p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition">
+                    <svg id="sunIcon" class="w-4 h-4 sm:w-5 sm:h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <svg id="moonIcon" class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                </button>
                 <!-- Language Switcher -->
                 <div class="relative">
-                    <select onchange="window.location='?lang='+this.value" class="appearance-none bg-slate-100 text-slate-700 text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg cursor-pointer pr-6 sm:pr-8 focus:outline-none">
+                    <select onchange="window.location='?lang='+this.value" class="appearance-none bg-slate-100 text-slate-700 text-xs px-2 py-1.5 sm:py-2 rounded-lg cursor-pointer pr-6 focus:outline-none">
                         <?php foreach ($languages as $code => $name): ?>
                         <option value="<?= $code ?>" <?= $current_lang == $code ? 'selected' : '' ?>><?= $name ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <svg class="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3 h-3 sm:w-4 sm:h-4 absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
                 </div>
-                <a href="profile.php" class="text-slate-500 hover:text-slate-900 p-2 hover:bg-slate-100 rounded-lg transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <!-- Notification Bell -->
+                <div class="relative">
+                    <button onclick="toggleNotifications()" id="notifBtn" class="text-slate-500 hover:text-slate-900 p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition relative">
+                        <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        <span id="notifBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">0</span>
+                    </button>
+                    <!-- Notification Dropdown -->
+                    <div id="notifDropdown" class="hidden fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-14 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 z-50 max-h-[70vh] overflow-hidden">
+                        <div class="p-3 border-b border-slate-100 flex justify-between items-center">
+                            <h3 class="font-semibold text-slate-900">Notifikasi</h3>
+                            <button onclick="markAllRead()" class="text-xs text-secondary hover:underline">Tandai semua dibaca</button>
+                        </div>
+                        <div id="notifList" class="overflow-y-auto max-h-80">
+                            <div class="p-4 text-center text-slate-400 text-sm">Memuat...</div>
+                        </div>
+                        <div class="p-2 border-t border-slate-100 text-center">
+                            <a href="notifications.php" class="text-sm text-secondary hover:underline">Lihat semua notifikasi</a>
+                        </div>
+                    </div>
+                </div>
+                <a href="profile.php" class="text-slate-500 hover:text-slate-900 p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg transition">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                     </svg>
                 </a>
-                <button onclick="showLogoutModal()" class="text-slate-500 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button onclick="showLogoutModal()" class="text-slate-500 hover:text-red-600 p-1.5 sm:p-2 hover:bg-red-50 rounded-lg transition">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
                     </svg>
                 </button>
@@ -277,58 +348,196 @@ $languages = getAvailableLanguages();
                 <?php endif; ?>
 
                 <!-- Forum Diskusi (Selalu Tampil) -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden" id="forumSection">
-                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                            </svg>
-                            <h3 class="font-bold text-slate-900">Forum Diskusi</h3>
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm" id="forumSection">
+                    <div class="px-4 sm:px-6 py-4 border-b border-slate-100 bg-white rounded-t-2xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                </svg>
+                                <h3 class="font-bold text-slate-900">Forum Diskusi</h3>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <!-- Sound Toggle -->
+                                <button onclick="toggleSound()" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded transition" title="Toggle Sound">
+                                    <svg id="soundIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                                    </svg>
+                                </button>
+                                <!-- Online Count -->
+                                <span class="text-xs text-green-500 flex items-center gap-1 cursor-pointer" id="onlineStatus" onclick="showOnlineUsers()" title="Lihat yang online">
+                                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                    <span id="onlineCount">0</span> Online
+                                </span>
+                            </div>
                         </div>
-                        <span class="text-xs text-green-500 flex items-center gap-1" id="onlineStatus">
-                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            Live
-                        </span>
+                        <!-- Search Bar -->
+                        <div class="relative" id="searchContainer">
+                            <input type="text" id="forumSearch" placeholder="Cari pesan..." 
+                                class="w-full pl-9 pr-4 py-2 bg-slate-100 border-0 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-secondary outline-none">
+                            <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            <div id="searchResults" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-20"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pinned Messages Banner -->
+                    <div id="pinnedBanner" class="hidden border-b border-amber-200 bg-amber-50">
                     </div>
                     
                     <!-- Chat Messages -->
-                    <div id="chatMessages" class="h-80 overflow-y-auto p-4 space-y-3 bg-slate-50">
-                        <div class="text-center text-slate-400 text-sm py-8">Memuat pesan...</div>
+                    <div id="chatMessagesWrapper" class="relative h-80 overflow-hidden z-0">
+                        <div id="forumWallpaperBg" class="absolute inset-0 bg-cover bg-center"></div>
+                        <div id="forumWallpaperOverlay" class="absolute inset-0 bg-black" style="opacity: 0;"></div>
+                        <div id="chatMessages" class="absolute inset-0 overflow-y-auto overflow-x-hidden p-4 space-y-3">
+                            <div class="text-center text-slate-400 text-sm py-8">Memuat pesan...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Typing Indicator -->
+                    <div id="typingIndicator" class="hidden px-4 py-1 text-xs text-slate-500 italic bg-slate-50/80">
+                        <span id="typingText"></span>
+                        <span class="typing-dots">
+                            <span class="animate-bounce inline-block" style="animation-delay: 0ms">.</span>
+                            <span class="animate-bounce inline-block" style="animation-delay: 150ms">.</span>
+                            <span class="animate-bounce inline-block" style="animation-delay: 300ms">.</span>
+                        </span>
                     </div>
                     
                     <!-- Chat Input -->
-                    <div class="p-4 border-t border-slate-100">
+                    <div class="p-3 border-t border-slate-100">
                         <div id="replyPreview"></div>
                         <div id="imagePreview" class="hidden mb-2"></div>
                         <div id="mentionDropdown" class="hidden absolute bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto z-50"></div>
-                        <form id="chatForm" class="flex gap-2 items-end">
-                            <div class="flex gap-1">
-                                <!-- Emoji Picker Button -->
-                                <button type="button" id="emojiBtn" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Emoji">
+                        <form id="chatForm" class="flex flex-col gap-2 relative">
+                            <!-- Input Row -->
+                            <div class="flex gap-2 items-center">
+                                <!-- Attachment Menu Button (Mobile) -->
+                                <button type="button" id="attachMenuBtn" class="md:hidden w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition flex-shrink-0" title="Lampiran">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                                     </svg>
                                 </button>
-                                <!-- Image Upload Button -->
-                                <label class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer" title="Kirim Gambar">
+                                <!-- Icons (Desktop Only) -->
+                                <div class="hidden md:flex items-center flex-shrink-0">
+                                    <button type="button" id="emojiBtn" class="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition" title="Emoji">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </button>
+                                    <button type="button" id="stickerBtn" class="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition" title="Stiker">
+                                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2"/>
+                                            <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke-width="2" stroke-linecap="round"/>
+                                            <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                                            <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                                        </svg>
+                                    </button>
+                                    <label class="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition cursor-pointer" title="Kirim Gambar">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                        <input type="file" id="imageInput" accept="image/*" class="hidden">
+                                    </label>
+                                    <label class="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition cursor-pointer" title="Kirim File">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                        </svg>
+                                        <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" class="hidden">
+                                    </label>
+                                    <!-- Poll Button -->
+                                    <button type="button" onclick="showPollModal()" class="w-9 h-9 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition" title="Buat Polling">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <!-- Input Field -->
+                                <div class="flex-1 min-w-0">
+                                    <textarea id="chatInput" placeholder="Tulis pesan..." maxlength="2000" rows="1"
+                                        class="w-full px-4 py-2.5 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-secondary focus:border-secondary outline-none transition text-sm resize-none overflow-hidden leading-5"
+                                        style="max-height: 120px;"></textarea>
+                                </div>
+                                <!-- Voice & Send -->
+                                <button type="button" id="voiceBtn" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition flex-shrink-0" title="Rekam Suara">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                    </svg>
+                                </button>
+                                <button type="submit" id="sendBtn" class="w-10 h-10 flex items-center justify-center bg-secondary text-white rounded-full hover:bg-secondary/90 transition flex-shrink-0">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <!-- Mobile Attachment Menu -->
+                            <div id="attachMenu" class="hidden md:hidden flex items-center justify-center gap-2 py-2 bg-slate-50 rounded-xl">
+                                <button type="button" id="emojiBtnMobile" class="w-12 h-12 flex flex-col items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition" title="Emoji">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span class="text-xs mt-0.5">Emoji</span>
+                                </button>
+                                <button type="button" id="stickerBtnMobile" class="w-12 h-12 flex flex-col items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition" title="Stiker">
+                                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="2"/>
+                                        <path d="M8 14s1.5 2 4 2 4-2 4-2" stroke-width="2" stroke-linecap="round"/>
+                                        <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                                        <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                                    </svg>
+                                    <span class="text-xs mt-0.5">Stiker</span>
+                                </button>
+                                <label class="w-12 h-12 flex flex-col items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer" title="Gambar">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                                     </svg>
-                                    <input type="file" id="imageInput" accept="image/*" class="hidden">
+                                    <span class="text-xs mt-0.5">Gambar</span>
+                                    <input type="file" id="imageInputMobile" accept="image/*" class="hidden">
                                 </label>
+                                <label class="w-12 h-12 flex flex-col items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer" title="File">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                    </svg>
+                                    <span class="text-xs mt-0.5">File</span>
+                                    <input type="file" id="fileInputMobile" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" class="hidden">
+                                </label>
+                                <button type="button" onclick="attachMenu.classList.add('hidden'); showPollModal()" class="w-12 h-12 flex flex-col items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition" title="Polling">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                    </svg>
+                                    <span class="text-xs mt-0.5">Poll</span>
+                                </button>
                             </div>
-                            <div class="flex-1 relative">
-                                <input type="text" id="chatInput" placeholder="Tulis pesan... (@ untuk tag)" maxlength="2000"
-                                    class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-secondary focus:border-secondary outline-none transition text-sm">
-                            </div>
-                            <button type="submit" id="sendBtn" class="px-4 py-2 bg-secondary text-white rounded-xl hover:bg-secondary/90 transition">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                                </svg>
-                            </button>
                         </form>
+                        <!-- Voice Recording UI -->
+                        <div id="voiceRecordingUI" class="hidden">
+                            <div class="flex items-center gap-2">
+                                <button type="button" id="cancelVoice" class="w-9 h-9 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-full transition flex-shrink-0" title="Batal">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                                <div class="flex-1 flex items-center gap-2 px-3 py-2 bg-red-50 rounded-full">
+                                    <div id="voiceWaveform" class="flex items-center gap-0.5">
+                                        <div class="w-1 bg-red-500 rounded-full animate-pulse" style="height: 8px;"></div>
+                                        <div class="w-1 bg-red-500 rounded-full animate-pulse" style="height: 14px; animation-delay: 0.1s;"></div>
+                                        <div class="w-1 bg-red-500 rounded-full animate-pulse" style="height: 18px; animation-delay: 0.2s;"></div>
+                                        <div class="w-1 bg-red-500 rounded-full animate-pulse" style="height: 12px; animation-delay: 0.3s;"></div>
+                                        <div class="w-1 bg-red-500 rounded-full animate-pulse" style="height: 16px; animation-delay: 0.4s;"></div>
+                                    </div>
+                                    <span id="voiceTimer" class="text-sm font-mono text-red-600">00:00</span>
+                                </div>
+                                <button type="button" id="sendVoice" class="w-10 h-10 flex items-center justify-center bg-green-500 text-white rounded-full hover:bg-green-600 transition flex-shrink-0" title="Kirim">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
                         <!-- Emoji Picker Dropdown -->
-                        <div id="emojiPicker" class="hidden absolute bottom-20 left-4 bg-white border border-slate-200 rounded-xl shadow-lg p-3 z-50">
+                        <div id="emojiPicker" class="hidden fixed inset-0 sm:inset-auto sm:absolute sm:bottom-full sm:left-4 sm:mb-2 bg-black/50 sm:bg-transparent z-[9999] flex items-end sm:block">
+                            <div class="w-full sm:w-auto bg-white sm:border sm:border-slate-200 rounded-t-2xl sm:rounded-xl shadow-lg p-3">
                             <div class="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
                                 <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😀</button>
                                 <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😂</button>
@@ -370,6 +579,32 @@ $languages = getAvailableLanguages();
                                 <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😜</button>
                                 <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🤭</button>
                                 <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">🥶</button>
+                            </div>
+                            </div>
+                        </div>
+                        <!-- Sticker Picker Dropdown -->
+                        <div id="stickerPicker" class="hidden fixed inset-0 sm:inset-auto sm:absolute sm:bottom-full sm:left-4 sm:mb-2 bg-black/50 sm:bg-transparent z-[9999] flex items-end sm:block">
+                            <div class="w-full sm:w-80 bg-white sm:border sm:border-slate-200 rounded-t-2xl sm:rounded-xl shadow-lg">
+                            <!-- Tabs -->
+                            <div class="flex border-b border-slate-200">
+                                <button type="button" class="sticker-tab flex-1 px-3 py-2 text-xs font-medium text-secondary border-b-2 border-secondary" data-tab="my">Koleksi Saya</button>
+                                <button type="button" class="sticker-tab flex-1 px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-700" data-tab="recent">Terbaru</button>
+                                <button type="button" class="sticker-tab flex-1 px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-700" data-tab="emoji">Emoji</button>
+                            </div>
+                            <!-- Upload Button -->
+                            <div class="p-2 border-b border-slate-100">
+                                <label class="flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer transition text-xs text-slate-600">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    Upload Stiker (PNG/WEBP/GIF/JPG, max 1MB)
+                                    <input type="file" id="stickerUpload" accept="image/png,image/webp,image/gif,image/jpeg" class="hidden">
+                                </label>
+                            </div>
+                            <!-- Sticker Content -->
+                            <div id="stickerContent" class="p-2 h-48 overflow-y-auto">
+                                <div class="text-center text-slate-400 text-sm py-8">Memuat stiker...</div>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -447,7 +682,7 @@ $languages = getAvailableLanguages();
             <!-- Sidebar -->
             <div class="space-y-6">
 
-                <!-- Leaderboard & Streak -->
+                <!-- Leaderboard & Poin -->
                 <a href="leaderboard.php" class="block bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-4 text-white hover:shadow-lg transition">
                     <div class="flex items-center justify-between">
                         <div>
@@ -455,11 +690,11 @@ $languages = getAvailableLanguages();
                             <p class="text-3xl font-bold">#<?= $user_rank ?></p>
                         </div>
                         <div class="text-right">
-                            <p class="text-white/80 text-sm">Streak</p>
-                            <p class="text-2xl font-bold"><?= $user_streak ?> 🔥</p>
+                            <p class="text-white/80 text-sm">Poin</p>
+                            <p class="text-2xl font-bold"><?= $user_points ?></p>
                         </div>
                     </div>
-                    <p class="text-white/60 text-xs mt-2">Tap untuk lihat leaderboard →</p>
+                    <p class="text-white/60 text-xs mt-2"><?= $user_streak ?> hari streak 🔥 · Tap untuk detail →</p>
                 </a>
 
                 <!-- Badges -->
@@ -555,7 +790,28 @@ $languages = getAvailableLanguages();
                                 <p class="text-slate-400 text-sm"><?= $pending_perms > 0 ? $pending_perms . ' pengajuan pending' : 'Tidak bisa hadir?' ?></p>
                             </div>
                         </button>
-
+                        <a href="iuran.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition">
+                            <div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-slate-900">Iuran</p>
+                                <p class="text-slate-400 text-sm"><?= $unpaid_iuran['count'] > 0 ? $unpaid_iuran['count'] . ' belum bayar' : 'Semua lunas' ?></p>
+                            </div>
+                        </a>
+                        <a href="leaderboard.php" class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition">
+                            <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-slate-900">Leaderboard</p>
+                                <p class="text-slate-400 text-sm">Peringkat #<?= $user_rank ?> · <?= $user_points ?> poin</p>
+                            </div>
+                        </a>
                     </div>
                 </div>
 
@@ -571,6 +827,57 @@ $languages = getAvailableLanguages();
             </p>
         </div>
     </footer>
+
+    <!-- Poll Create Modal -->
+    <div id="pollModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-slate-900">Buat Polling</h3>
+                <button onclick="hidePollModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto max-h-[60vh]">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Pertanyaan</label>
+                    <input type="text" id="pollQuestion" placeholder="Apa pendapat kalian?" maxlength="500"
+                        class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none text-sm">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Pilihan</label>
+                    <div id="pollOptions" class="space-y-2">
+                        <input type="text" class="poll-option w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none text-sm" placeholder="Pilihan 1" maxlength="100">
+                        <input type="text" class="poll-option w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none text-sm" placeholder="Pilihan 2" maxlength="100">
+                    </div>
+                    <button type="button" onclick="addPollOption()" class="mt-2 text-sm text-secondary hover:underline">+ Tambah pilihan</button>
+                </div>
+                <div class="mb-4 flex items-center gap-4">
+                    <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                        <input type="checkbox" id="pollMultiple" class="rounded border-slate-300 text-secondary focus:ring-secondary">
+                        <span>Boleh pilih lebih dari satu</span>
+                    </label>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Durasi</label>
+                    <select id="pollDuration" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none text-sm">
+                        <option value="0">Tanpa batas waktu</option>
+                        <option value="1">1 jam</option>
+                        <option value="6">6 jam</option>
+                        <option value="12">12 jam</option>
+                        <option value="24">1 hari</option>
+                        <option value="72">3 hari</option>
+                        <option value="168">1 minggu</option>
+                    </select>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 flex gap-2">
+                <button onclick="hidePollModal()" class="flex-1 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition">Batal</button>
+                <button onclick="createPoll()" class="flex-1 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition">Buat Poll</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Logout Confirmation Modal -->
     <div id="logoutModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
@@ -837,15 +1144,8 @@ $languages = getAvailableLanguages();
             dateHeader = `<div class="text-center my-3"><span class="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full">${formatDate(msg.created_at)}</span></div>`;
         }
         
-        // Pin badge untuk pesan yang di-pin
-        const pinBadge = isPinned ? `
-            <div class="flex items-center gap-1 text-amber-600 text-xs mb-1">
-                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L10 6.477V16h2a1 1 0 110 2H8a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/>
-                </svg>
-                <span class="font-medium">Disematkan</span>
-            </div>
-        ` : '';
+        // Pin indicator kecil di dalam pesan (opsional, karena sudah ada di banner)
+        const pinIndicator = isPinned ? `<span class="text-amber-500 ml-1" title="Pesan disematkan">📌</span>` : '';
         
         const replyHtml = (!isDeleted && msg.reply_info) ? `
             <div class="bg-slate-100/50 border-l-2 border-secondary px-2 py-1 rounded mb-1 cursor-pointer" onclick="scrollToMessage(${msg.reply_to})">
@@ -854,44 +1154,146 @@ $languages = getAvailableLanguages();
             </div>
         ` : '';
 
-        // Parse @mentions in message
+        // Parse @mentions and URLs in message
         const parseMentions = (text) => {
-            return text.replace(/@(\w+(?:\s\w+)*)/g, '<span class="text-blue-500 font-medium">@$1</span>');
+            // Parse URLs first
+            const urlRegex = /(https?:\/\/[^\s<]+)/g;
+            text = text.replace(urlRegex, '<a href="$1" target="_blank" class="text-blue-500 underline hover:text-blue-700">$1</a>');
+            // Parse mentions
+            text = text.replace(/@(\w+(?:\s\w+)*)/g, '<span class="text-blue-500 font-medium">@$1</span>');
+            return text;
         };
         
-        // Image HTML
+        // Check if message is a sticker (emoji or image) or poll
+        const emojiStickerMatch = msg.message ? msg.message.match(/^\[sticker\](.+)\[\/sticker\]$/) : null;
+        const imageStickerMatch = msg.message ? msg.message.match(/^\[sticker:(.+)\]$/) : null;
+        const pollMatch = msg.message ? msg.message.match(/^\[poll:(\d+)\]$/) : null;
+        const isEmojiSticker = emojiStickerMatch !== null;
+        const isImageSticker = imageStickerMatch !== null;
+        const isPoll = pollMatch !== null;
+        
+        // Image HTML - max-w-full agar tidak overflow
         const imageHtml = (!isDeleted && msg.image_url) ? `
             <div class="mt-2 mb-1">
-                <img src="../${msg.image_url}" alt="Image" class="max-w-xs rounded-lg cursor-pointer hover:opacity-90 transition" onclick="openImageModal('../${msg.image_url}')">
+                <img src="../${msg.image_url}" alt="Image" class="max-w-full max-h-60 rounded-lg cursor-pointer hover:opacity-90 transition object-contain" onclick="openImageModal('../${msg.image_url}')">
             </div>
         ` : '';
         
-        const messageContent = isDeleted 
-            ? `<p class="text-sm italic ${isMe ? 'text-white/70' : 'text-slate-400'}">Pesan telah dihapus</p>`
-            : `${msg.message ? `<p class="text-sm break-words whitespace-pre-wrap" id="msg-text-${msg.id}">${parseMentions(msg.message)}</p>` : ''}${imageHtml}`;
+        // File HTML
+        const getFileIcon = (ext) => {
+            const icons = {
+                'pdf': '📕',
+                'doc': '📘', 'docx': '📘',
+                'xls': '📗', 'xlsx': '📗',
+                'ppt': '📙', 'pptx': '📙'
+            };
+            return icons[ext] || '📎';
+        };
+        const fileExt = msg.file_name ? msg.file_name.split('.').pop().toLowerCase() : '';
+        const fileHtml = (!isDeleted && msg.file_url) ? `
+            <div class="mt-2 mb-1">
+                <a href="../${msg.file_url}" download="${msg.file_name || 'file'}" class="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition ${isMe ? 'bg-white/20 hover:bg-white/30' : ''}">
+                    <span class="text-2xl">${getFileIcon(fileExt)}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium truncate ${isMe ? 'text-white' : 'text-slate-700'}">${msg.file_name || 'File'}</p>
+                        <p class="text-xs ${isMe ? 'text-white/70' : 'text-slate-500'}">${fileExt.toUpperCase()}</p>
+                    </div>
+                    <svg class="w-5 h-5 ${isMe ? 'text-white/70' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                </a>
+            </div>
+        ` : '';
+        
+        // Voice HTML
+        const formatDuration = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        };
+        const voiceHtml = (!isDeleted && msg.voice_url) ? `
+            <div class="mt-2 mb-1">
+                <div class="voice-message flex items-center gap-3 px-3 py-2 ${isMe ? 'bg-white/20' : 'bg-slate-100'} rounded-xl min-w-[200px]">
+                    <button type="button" onclick="toggleVoicePlay(this, '../${msg.voice_url}')" class="voice-play-btn w-10 h-10 flex items-center justify-center ${isMe ? 'bg-white/30 hover:bg-white/40' : 'bg-secondary hover:bg-secondary/90'} rounded-full transition flex-shrink-0">
+                        <svg class="play-icon w-5 h-5 ${isMe ? 'text-white' : 'text-white'}" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        <svg class="pause-icon w-5 h-5 ${isMe ? 'text-white' : 'text-white'} hidden" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                        </svg>
+                    </button>
+                    <div class="flex-1">
+                        <div class="voice-progress-container h-1.5 ${isMe ? 'bg-white/30' : 'bg-slate-300'} rounded-full overflow-hidden cursor-pointer" onclick="seekVoice(event, this)">
+                            <div class="voice-progress h-full ${isMe ? 'bg-white' : 'bg-secondary'} rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between mt-1">
+                            <span class="voice-current-time text-xs ${isMe ? 'text-white/70' : 'text-slate-500'}">0:00</span>
+                            <span class="voice-duration text-xs ${isMe ? 'text-white/70' : 'text-slate-500'}">${formatDuration(msg.voice_duration || 0)}</span>
+                        </div>
+                    </div>
+                    <svg class="w-5 h-5 ${isMe ? 'text-white/50' : 'text-slate-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                    </svg>
+                </div>
+            </div>
+        ` : '';
+        
+        let messageContent;
+        if (isDeleted) {
+            messageContent = `<p class="text-sm italic ${isMe ? 'text-white/70' : 'text-slate-400'}">Pesan telah dihapus</p>`;
+        } else if (isEmojiSticker) {
+            messageContent = `<div class="text-6xl leading-none py-1">${emojiStickerMatch[1]}</div>`;
+        } else if (isImageSticker) {
+            const stickerUrl = imageStickerMatch[1];
+            messageContent = `
+                <div class="relative group/sticker">
+                    <img src="../${stickerUrl}" class="w-32 h-32 object-contain" alt="sticker">
+                    ${!isMe ? `<button onclick="saveSticker('${stickerUrl}')" class="absolute top-0 right-0 p-1 bg-black/50 text-white rounded-bl-lg opacity-0 group-hover/sticker:opacity-100 transition text-xs" title="Simpan Stiker">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    </button>` : ''}
+                </div>`;
+        } else if (isPoll) {
+            const pollId = pollMatch[1];
+            messageContent = `<div class="poll-container" data-poll-id="${pollId}"><p class="text-sm text-slate-400">Memuat polling...</p></div>`;
+        } else {
+            messageContent = `${msg.message ? `<p class="text-sm break-words whitespace-pre-wrap" id="msg-text-${msg.id}">${parseMentions(msg.message)}</p>` : ''}${imageHtml}${fileHtml}${voiceHtml}`;
+        }
 
         const editedLabel = (isEdited && !isDeleted) ? `<span class="text-xs ${isMe ? 'text-white/50' : 'text-slate-400'} ml-1">· diedit</span>` : '';
         
-        // Tombol pin untuk admin
-        const pinButton = (isAdmin && !isDeleted) ? `
+        // Tombol-tombol aksi
+        const reactionButton = `
+            <button onclick="showReactionPicker(event, ${msg.id})" class="p-1 text-slate-400 hover:text-yellow-500" title="Tambah Reaksi">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </button>
+        `;
+        
+        const pinButton = `
             <button onclick="togglePin(${msg.id}, ${isPinned})" 
                 class="p-1 ${isPinned ? 'text-amber-500' : 'text-slate-400'} hover:text-amber-600" title="${isPinned ? 'Lepas Pin' : 'Pin Pesan'}">
                 <svg class="w-4 h-4" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 20 20">
                     <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L10 6.477V16h2a1 1 0 110 2H8a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/>
                 </svg>
             </button>
-        ` : '';
+        `;
+        
+        const replyButton = `
+            <button onclick="setReply(${msg.id}, '${msg.nama.replace(/'/g, "\\'")}', '${(msg.message || '').replace(/'/g, "\\'").replace(/\n/g, ' ')}')" 
+                class="p-1 text-slate-400 hover:text-slate-600" title="Balas">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                </svg>
+            </button>
+        `;
 
         const actionButtons = (isMe && !isDeleted) ? `
-            <div class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-1 transition">
+            <div class="absolute ${isMe ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white rounded-lg shadow-sm border border-slate-200 p-0.5 transition">
+                ${reactionButton}
+                ${replyButton}
                 ${pinButton}
-                <button onclick="setReply(${msg.id}, '${msg.nama.replace(/'/g, "\\'")}', '${msg.message.replace(/'/g, "\\'").replace(/\n/g, ' ')}')" 
-                    class="p-1 text-slate-400 hover:text-slate-600" title="Balas">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
-                    </svg>
-                </button>
-                <button onclick="startEdit(${msg.id}, '${msg.message.replace(/'/g, "\\'").replace(/\n/g, '\\n')}')" 
+                <button onclick="startEdit(${msg.id}, '${(msg.message || '').replace(/'/g, "\\'").replace(/\n/g, '\\n')}')" 
                     class="p-1 text-slate-400 hover:text-blue-600" title="Edit">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -906,26 +1308,22 @@ $languages = getAvailableLanguages();
             </div>
         ` : (isMe && isDeleted) ? `
             <button onclick="deleteMessage(${msg.id}, true)" 
-                class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 transition" title="Hapus Permanen">
+                class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 bg-white rounded shadow-sm border transition" title="Hapus Permanen">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                 </svg>
             </button>
         ` : (!isDeleted ? `
-            <div class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-1 transition">
+            <div class="absolute ${isMe ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white rounded-lg shadow-sm border border-slate-200 p-0.5 transition">
+                ${reactionButton}
+                ${replyButton}
                 ${pinButton}
-                <button onclick="setReply(${msg.id}, '${msg.nama.replace(/'/g, "\\'")}', '${msg.message.replace(/'/g, "\\'").replace(/\n/g, ' ')}')" 
-                    class="p-1 text-slate-400 hover:text-slate-600" title="Balas">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
-                    </svg>
-                </button>
             </div>
         ` : '');
         
         return `
             ${dateHeader}
-            <div class="flex gap-2 ${isMe ? 'flex-row-reverse' : ''} group ${isPinned ? 'bg-amber-50/50 -mx-2 px-2 py-1 rounded-lg' : ''}" id="msg-${msg.id}">
+            <div class="flex gap-2 ${isMe ? 'flex-row-reverse' : ''} group" id="msg-${msg.id}">
                 ${!isMe && picture ? 
                     `<img src="${picture}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-auto">` :
                     !isMe ? `<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 mt-auto">
@@ -935,13 +1333,14 @@ $languages = getAvailableLanguages();
                     </div>` : ''
                 }
                 <div class="max-w-[75%] relative">
-                    ${pinBadge}
-                    <div class="${isMe ? 'bg-secondary text-white' : 'bg-white border border-slate-200'} ${isPinned && !isMe ? 'border-amber-300' : ''} px-3 py-2 rounded-xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} ${isDeleted ? 'opacity-70' : ''}">
-                        ${!isMe ? `<p class="text-xs font-semibold ${isMe ? 'text-white/80' : 'text-secondary'} mb-1">${msg.nama}</p>` : ''}
+                    <div class="${isMe ? 'bg-secondary text-white' : 'bg-white border border-slate-200'} px-3 py-2 rounded-xl ${isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'} ${isDeleted ? 'opacity-70' : ''} break-words overflow-hidden">
+                        ${!isMe ? `<p class="text-xs font-semibold ${isMe ? 'text-white/80' : 'text-secondary'} mb-1">${msg.nama}${pinIndicator}</p>` : ''}
                         ${replyHtml}
                         ${messageContent}
-                        <p class="text-xs ${isMe ? 'text-white/60' : 'text-slate-400'} mt-1 text-right">${formatTime(msg.created_at)}${editedLabel}</p>
+                        <p class="text-xs ${isMe ? 'text-white/60' : 'text-slate-400'} mt-1 text-right">${isMe && isPinned ? '📌 ' : ''}${formatTime(msg.created_at)}${editedLabel}</p>
                     </div>
+                    <!-- Reactions Display -->
+                    <div class="reactions-display flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : ''}" id="reactions-${msg.id}"></div>
                     ${actionButtons}
                 </div>
             </div>
@@ -1055,6 +1454,46 @@ $languages = getAvailableLanguages();
     }
 
     let lastDate = '';
+    let pinnedMessages = [];
+    
+    function renderPinnedBanner() {
+        const banner = document.getElementById('pinnedBanner');
+        if (pinnedMessages.length === 0) {
+            banner.classList.add('hidden');
+            banner.innerHTML = '';
+            return;
+        }
+        
+        banner.classList.remove('hidden');
+        let html = '';
+        pinnedMessages.forEach((msg, index) => {
+            const picture = msg.picture ? (msg.picture.startsWith('http') ? msg.picture : '../' + msg.picture) : '';
+            const emojiStickerPreview = msg.message ? msg.message.match(/^\[sticker\](.+)\[\/sticker\]$/) : null;
+            const imageStickerPreview = msg.message ? msg.message.match(/^\[sticker:(.+)\]$/) : null;
+            const previewText = emojiStickerPreview ? `🎭 ${emojiStickerPreview[1]}` : (imageStickerPreview ? '🎭 Stiker' : (msg.message ? (msg.message.length > 50 ? msg.message.substring(0, 50) + '...' : msg.message) : (msg.image_url ? '📷 Gambar' : (msg.file_url ? '📎 File' : ''))));
+            html += `
+                <div class="flex items-center gap-3 px-4 py-2 ${index > 0 ? 'border-t border-amber-200' : ''} cursor-pointer hover:bg-amber-100 transition" onclick="scrollToMessage(${msg.id})">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L10 6.477V16h2a1 1 0 110 2H8a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/>
+                        </svg>
+                        ${picture ? `<img src="${picture}" class="w-6 h-6 rounded-full object-cover flex-shrink-0">` : ''}
+                        <div class="min-w-0 flex-1">
+                            <span class="text-xs font-semibold text-amber-800">${msg.nama}</span>
+                            <p class="text-xs text-amber-700 truncate">${previewText}</p>
+                        </div>
+                    </div>
+                    <button onclick="event.stopPropagation(); togglePin(${msg.id}, true)" class="p-1 text-amber-600 hover:text-red-600 flex-shrink-0" title="Lepas Pin">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            `;
+        });
+        banner.innerHTML = html;
+    }
+    
     async function loadMessages() {
         try {
             const res = await fetch(`${BASE_URL}/forum_messages.php?last_id=${lastMessageId}`);
@@ -1068,6 +1507,12 @@ $languages = getAvailableLanguages();
             if (data.messages && data.messages.length > 0) {
                 const container = document.getElementById('chatMessages');
                 
+                // Pisahkan pesan yang di-pin dan yang biasa
+                if (lastMessageId === 0) {
+                    pinnedMessages = data.messages.filter(m => m.is_pinned && !m.is_deleted);
+                    renderPinnedBanner();
+                }
+                
                 if (lastMessageId === 0) {
                     lastDate = '';
                     let html = '';
@@ -1079,6 +1524,17 @@ $languages = getAvailableLanguages();
                     });
                     container.innerHTML = html || '<div class="text-center text-slate-400 text-sm py-8">Belum ada pesan. Mulai diskusi!</div>';
                 } else {
+                    // Check for new pinned messages
+                    const newPinned = data.messages.filter(m => m.is_pinned && !m.is_deleted);
+                    if (newPinned.length > 0) {
+                        newPinned.forEach(np => {
+                            if (!pinnedMessages.find(p => p.id === np.id)) {
+                                pinnedMessages.push(np);
+                            }
+                        });
+                        renderPinnedBanner();
+                    }
+                    
                     data.messages.forEach(msg => {
                         const msgDate = new Date(msg.created_at).toDateString();
                         const showDate = msgDate !== lastDate;
@@ -1094,17 +1550,28 @@ $languages = getAvailableLanguages();
                 container.scrollTop = container.scrollHeight;
             } else if (lastMessageId === 0) {
                 document.getElementById('chatMessages').innerHTML = '<div class="text-center text-slate-400 text-sm py-8">Belum ada pesan. Mulai diskusi!</div>';
+                pinnedMessages = [];
+                renderPinnedBanner();
             }
         } catch (err) {
             console.error('Error loading messages:', err);
         }
     }
 
-    async function sendMessage(message, imageUrl = null) {
+    let sendLock = false;
+    async function sendMessage(message, imageUrl = null, fileUrl = null, fileName = null) {
+        // Prevent double send
+        if (sendLock) return false;
+        sendLock = true;
+        
         try {
             const body = { message: message };
             if (replyTo) body.reply_to = replyTo.id;
             if (imageUrl) body.image_url = imageUrl;
+            if (fileUrl) {
+                body.file_url = fileUrl;
+                body.file_name = fileName;
+            }
             
             const res = await fetch(`${BASE_URL}/forum_send.php`, {
                 method: 'POST',
@@ -1113,6 +1580,7 @@ $languages = getAvailableLanguages();
             });
             
             const data = await res.json();
+            sendLock = false;
             if (data.success) {
                 cancelReply();
                 return true;
@@ -1122,16 +1590,23 @@ $languages = getAvailableLanguages();
             }
         } catch (err) {
             console.error('Error sending message:', err);
+            sendLock = false;
             return false;
         }
     }
 
+    let isSending = false;
     document.getElementById('chatForm').addEventListener('submit', async function(e) {
         e.preventDefault();
+        
+        // Prevent double submit
+        if (isSending) return;
+        
         const input = document.getElementById('chatInput');
         const message = input.value.trim();
         
-        if (message || pendingImage) {
+        if (message || pendingImage || pendingFile) {
+            isSending = true;
             input.disabled = true;
             document.getElementById('sendBtn').disabled = true;
             let success;
@@ -1139,16 +1614,19 @@ $languages = getAvailableLanguages();
             if (editingId) {
                 success = await editMessage(editingId, message);
             } else {
-                success = await sendMessage(message, pendingImage);
+                success = await sendMessage(message, pendingImage, pendingFile, pendingFileName);
             }
             
             if (success) {
                 input.value = '';
+                input.style.height = 'auto'; // Reset textarea height
                 cancelImage();
+                cancelFile();
                 await loadMessages();
             }
             input.disabled = false;
             document.getElementById('sendBtn').disabled = false;
+            isSending = false;
             input.focus();
         }
     });
@@ -1162,13 +1640,8 @@ $languages = getAvailableLanguages();
         const file = e.target.files[0];
         if (!file) return;
         
-        if (!file.type.startsWith('image/')) {
-            alert('Hanya file gambar yang diperbolehkan');
-            return;
-        }
-        
-        if (file.size > 5 * 1024 * 1024) {
-            alert('Ukuran gambar maksimal 5MB');
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Ukuran file maksimal 10MB');
             return;
         }
         
@@ -1220,6 +1693,70 @@ $languages = getAvailableLanguages();
         imagePreview.classList.add('hidden');
     }
     
+    // File upload handling
+    let pendingFile = null;
+    let pendingFileName = null;
+    const fileInput = document.getElementById('fileInput');
+    
+    fileInput.addEventListener('change', async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Ukuran file maksimal 10MB');
+            return;
+        }
+        
+        // Show preview
+        const ext = file.name.split('.').pop().toLowerCase();
+        const icons = { 'pdf': '📕', 'doc': '📘', 'docx': '📘', 'xls': '📗', 'xlsx': '📗', 'ppt': '📙', 'pptx': '📙' };
+        imagePreview.innerHTML = `
+            <div class="relative inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg">
+                <span class="text-2xl">${icons[ext] || '📎'}</span>
+                <span class="text-sm text-slate-700">${file.name}</span>
+                <button type="button" onclick="cancelFile()" class="ml-2 text-red-500 hover:text-red-700">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+        imagePreview.classList.remove('hidden');
+        
+        // Upload file
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const res = await fetch(`${BASE_URL}/forum_upload.php`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                pendingFile = data.file_url;
+                pendingFileName = data.file_name || file.name;
+            } else {
+                alert(data.error || 'Gagal upload file');
+                cancelFile();
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('Gagal upload file');
+            cancelFile();
+        }
+        
+        fileInput.value = '';
+    });
+    
+    function cancelFile() {
+        pendingFile = null;
+        pendingFileName = null;
+        imagePreview.innerHTML = '';
+        imagePreview.classList.add('hidden');
+    }
+    window.cancelFile = cancelFile;
+    
     // Emoji picker
     const emojiBtn = document.getElementById('emojiBtn');
     const emojiPicker = document.getElementById('emojiPicker');
@@ -1242,9 +1779,176 @@ $languages = getAvailableLanguages();
         });
     });
     
+    // Sticker picker
+    const stickerBtn = document.getElementById('stickerBtn');
+    const stickerPicker = document.getElementById('stickerPicker');
+    const stickerContent = document.getElementById('stickerContent');
+    let stickerData = null;
+    let currentStickerTab = 'my';
+    
+    const defaultEmojis = ['👍','👎','❤️','🔥','😂','😭','😍','🥺','🤣','😎','🥳','🎉','💯','✨','💪','🙏','👏','🤝','👀','💀','🤡','😈','👻','💩','🐶','🐱','🦊','🐸','🌈','☀️','🌙','⭐'];
+    
+    async function loadStickers() {
+        try {
+            const res = await fetch(`${BASE_URL}/sticker_list.php`);
+            stickerData = await res.json();
+            renderStickers();
+        } catch (err) {
+            console.error('Error loading stickers:', err);
+            stickerContent.innerHTML = '<div class="text-center text-red-400 text-sm py-4">Gagal memuat stiker</div>';
+        }
+    }
+    
+    function renderStickers() {
+        let html = '';
+        
+        if (currentStickerTab === 'my') {
+            if (stickerData?.my_stickers?.length > 0) {
+                html = '<div class="grid grid-cols-4 gap-2">';
+                stickerData.my_stickers.forEach(s => {
+                    html += `<button type="button" class="sticker-item p-1 hover:bg-slate-100 rounded-lg transition" data-url="${s.file_url}">
+                        <img src="../${s.file_url}" class="w-14 h-14 object-contain" alt="sticker">
+                    </button>`;
+                });
+                html += '</div>';
+            } else {
+                html = '<div class="text-center text-slate-400 text-xs py-6">Belum ada stiker. Upload atau curi stiker dari chat!</div>';
+            }
+        } else if (currentStickerTab === 'recent') {
+            if (stickerData?.recent?.length > 0) {
+                html = '<div class="grid grid-cols-4 gap-2">';
+                stickerData.recent.forEach(s => {
+                    html += `<button type="button" class="sticker-item p-1 hover:bg-slate-100 rounded-lg transition relative group" data-url="${s.file_url}" data-id="${s.id}">
+                        <img src="../${s.file_url}" class="w-14 h-14 object-contain" alt="sticker">
+                        <span class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        </span>
+                    </button>`;
+                });
+                html += '</div>';
+            } else {
+                html = '<div class="text-center text-slate-400 text-xs py-6">Belum ada stiker terbaru</div>';
+            }
+        } else if (currentStickerTab === 'emoji') {
+            html = '<div class="grid grid-cols-5 gap-1">';
+            defaultEmojis.forEach(e => {
+                html += `<button type="button" class="emoji-sticker text-3xl p-2 hover:bg-slate-100 rounded-lg transition">${e}</button>`;
+            });
+            html += '</div>';
+        }
+        
+        stickerContent.innerHTML = html;
+        bindStickerEvents();
+    }
+    
+    function bindStickerEvents() {
+        document.querySelectorAll('.sticker-item').forEach(btn => {
+            btn.addEventListener('click', async function(e) {
+                const url = this.dataset.url;
+                const id = this.dataset.id;
+                
+                // If on recent tab and not in my collection, save first
+                if (currentStickerTab === 'recent' && id) {
+                    await fetch(`${BASE_URL}/sticker_save.php`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({action: 'save', sticker_id: parseInt(id)})
+                    });
+                }
+                
+                stickerPicker.classList.add('hidden');
+                await sendMessage(`[sticker:${url}]`);
+                lastMessageId = 0;
+                await loadMessages();
+            });
+        });
+        
+        document.querySelectorAll('.emoji-sticker').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const emoji = this.textContent;
+                stickerPicker.classList.add('hidden');
+                await sendMessage(`[sticker]${emoji}[/sticker]`);
+                lastMessageId = 0;
+                await loadMessages();
+            });
+        });
+    }
+    
+    // Tab switching
+    document.querySelectorAll('.sticker-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.sticker-tab').forEach(t => {
+                t.classList.remove('text-secondary', 'border-b-2', 'border-secondary');
+                t.classList.add('text-slate-500');
+            });
+            this.classList.remove('text-slate-500');
+            this.classList.add('text-secondary', 'border-b-2', 'border-secondary');
+            currentStickerTab = this.dataset.tab;
+            renderStickers();
+        });
+    });
+    
+    // Upload sticker
+    document.getElementById('stickerUpload').addEventListener('change', async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('sticker', file);
+        
+        stickerContent.innerHTML = '<div class="text-center text-slate-400 text-sm py-8">Mengupload stiker...</div>';
+        
+        try {
+            const res = await fetch(`${BASE_URL}/sticker_upload.php`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                await loadStickers();
+                currentStickerTab = 'my';
+                document.querySelectorAll('.sticker-tab').forEach(t => {
+                    t.classList.remove('text-secondary', 'border-b-2', 'border-secondary');
+                    t.classList.add('text-slate-500');
+                });
+                document.querySelector('.sticker-tab[data-tab="my"]').classList.remove('text-slate-500');
+                document.querySelector('.sticker-tab[data-tab="my"]').classList.add('text-secondary', 'border-b-2', 'border-secondary');
+                renderStickers();
+            } else {
+                alert(data.error || 'Gagal upload stiker');
+                renderStickers();
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            alert('Gagal upload stiker');
+            renderStickers();
+        }
+        
+        this.value = '';
+    });
+    
+    stickerBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        emojiPicker.classList.add('hidden');
+        if (stickerPicker.classList.contains('hidden')) {
+            stickerPicker.classList.remove('hidden');
+            if (!stickerData) loadStickers();
+        } else {
+            stickerPicker.classList.add('hidden');
+        }
+    });
+    
+    emojiBtn.addEventListener('click', function() {
+        stickerPicker.classList.add('hidden');
+    });
+    
     document.addEventListener('click', function(e) {
         if (!emojiPicker.contains(e.target) && e.target !== emojiBtn) {
             emojiPicker.classList.add('hidden');
+        }
+        if (!stickerPicker.contains(e.target) && e.target !== stickerBtn) {
+            stickerPicker.classList.add('hidden');
         }
         if (!mentionDropdown.contains(e.target)) {
             mentionDropdown.classList.add('hidden');
@@ -1333,11 +2037,1162 @@ $languages = getAvailableLanguages();
         `;
         document.body.appendChild(modal);
     }
+    async function saveSticker(url) {
+        try {
+            const res = await fetch(`${BASE_URL}/sticker_save.php`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'save', file_url: url})
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Stiker berhasil disimpan ke koleksi!');
+                stickerData = null; // Reset to reload next time
+            } else {
+                alert(data.error || 'Gagal menyimpan stiker');
+            }
+        } catch (err) {
+            console.error('Error saving sticker:', err);
+            alert('Gagal menyimpan stiker');
+        }
+    }
+    
     window.openImageModal = openImageModal;
     window.cancelImage = cancelImage;
+    window.saveSticker = saveSticker;
 
+    // Load forum wallpaper settings
+    async function loadForumWallpaper() {
+        try {
+            const res = await fetch(`${BASE_URL}/forum_wallpaper.php`);
+            const data = await res.json();
+            if (data.success) {
+                const wallpaperBg = document.getElementById('forumWallpaperBg');
+                const wallpaperOverlay = document.getElementById('forumWallpaperOverlay');
+                
+                if (data.wallpaper) {
+                    const wpUrl = data.wallpaper.startsWith('http') ? data.wallpaper : '../' + data.wallpaper;
+                    wallpaperBg.style.backgroundImage = `url('${wpUrl}')`;
+                    wallpaperOverlay.style.opacity = data.opacity || 0.5;
+                } else {
+                    wallpaperBg.style.backgroundImage = '';
+                    wallpaperOverlay.style.opacity = 0;
+                    document.getElementById('chatMessagesWrapper').classList.add('bg-slate-50');
+                }
+            }
+        } catch (err) {
+            console.error('Error loading wallpaper:', err);
+            document.getElementById('chatMessagesWrapper').classList.add('bg-slate-50');
+        }
+    }
+
+    loadForumWallpaper();
+
+    // ==================== MOBILE ATTACHMENT MENU ====================
+    const attachMenuBtn = document.getElementById('attachMenuBtn');
+    const attachMenu = document.getElementById('attachMenu');
+    
+    attachMenuBtn?.addEventListener('click', () => {
+        attachMenu.classList.toggle('hidden');
+    });
+    
+    // Mobile buttons handlers
+    document.getElementById('emojiBtnMobile')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        attachMenu.classList.add('hidden');
+        const picker = document.getElementById('emojiPicker');
+        const stickerPicker = document.getElementById('stickerPicker');
+        if (picker) {
+            picker.classList.toggle('hidden');
+            stickerPicker?.classList.add('hidden');
+        }
+    });
+    
+    document.getElementById('stickerBtnMobile')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        attachMenu.classList.add('hidden');
+        const picker = document.getElementById('stickerPicker');
+        const emojiPicker = document.getElementById('emojiPicker');
+        if (picker) {
+            picker.classList.toggle('hidden');
+            emojiPicker?.classList.add('hidden');
+            loadStickers();
+        }
+    });
+    
+    // Close picker when clicking overlay (mobile)
+    document.getElementById('emojiPicker')?.addEventListener('click', (e) => {
+        if (e.target.id === 'emojiPicker') {
+            e.target.classList.add('hidden');
+        }
+    });
+    document.getElementById('stickerPicker')?.addEventListener('click', (e) => {
+        if (e.target.id === 'stickerPicker') {
+            e.target.classList.add('hidden');
+        }
+    });
+    
+    // Mobile image input
+    document.getElementById('imageInputMobile')?.addEventListener('change', async function(e) {
+        attachMenu.classList.add('hidden');
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Ukuran gambar maksimal 10MB');
+            return;
+        }
+        
+        // Use same handler as desktop
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        try {
+            const res = await fetch(`${BASE_URL}/forum_upload.php`, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+                pendingImage = data.image_url;
+                imagePreview.innerHTML = `
+                    <div class="relative inline-block">
+                        <img src="../${data.image_url}" class="h-20 rounded-lg">
+                        <button type="button" onclick="cancelImage()" class="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center">×</button>
+                    </div>
+                `;
+                imagePreview.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+        }
+        this.value = '';
+    });
+    
+    // Mobile file input
+    document.getElementById('fileInputMobile')?.addEventListener('change', async function(e) {
+        attachMenu.classList.add('hidden');
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Ukuran file maksimal 10MB');
+            return;
+        }
+        
+        const ext = file.name.split('.').pop().toLowerCase();
+        const icons = { 'pdf': '📕', 'doc': '📘', 'docx': '📘', 'xls': '📗', 'xlsx': '📗', 'ppt': '📙', 'pptx': '📙' };
+        imagePreview.innerHTML = `
+            <div class="relative inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg">
+                <span class="text-2xl">${icons[ext] || '📎'}</span>
+                <span class="text-sm text-slate-700">${file.name}</span>
+                <button type="button" onclick="cancelFile()" class="ml-2 text-red-500 hover:text-red-700">×</button>
+            </div>
+        `;
+        imagePreview.classList.remove('hidden');
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const res = await fetch(`${BASE_URL}/forum_upload.php`, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+                pendingFile = data.file_url;
+                pendingFileName = data.file_name;
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+        }
+        this.value = '';
+    });
+    
+    // ==================== DARK MODE ====================
+    function toggleDarkMode() {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        document.body.style.background = isDark ? '#0a0a0a' : '';
+        
+        // Toggle icons
+        document.getElementById('sunIcon').classList.toggle('hidden', !isDark);
+        document.getElementById('moonIcon').classList.toggle('hidden', isDark);
+    }
+    
+    // Apply dark mode on load
+    if (document.documentElement.classList.contains('dark')) {
+        document.body.style.background = '#0a0a0a';
+        document.getElementById('sunIcon').classList.remove('hidden');
+        document.getElementById('moonIcon').classList.add('hidden');
+    }
+
+    // ==================== SEARCH MESSAGES ====================
+    const forumSearch = document.getElementById('forumSearch');
+    const searchResults = document.getElementById('searchResults');
+    let searchDebounce = null;
+
+    forumSearch.addEventListener('input', function() {
+        const query = this.value.trim();
+        clearTimeout(searchDebounce);
+        
+        if (query.length < 2) {
+            searchResults.classList.add('hidden');
+            searchResults.innerHTML = '';
+            return;
+        }
+        
+        searchDebounce = setTimeout(async () => {
+            try {
+                const res = await fetch(`${BASE_URL}/forum_search.php?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                
+                if (data.success && data.messages.length > 0) {
+                    let html = `<div class="p-2 text-xs text-slate-500 dark:text-slate-400 border-b dark:border-slate-600">${data.count} hasil ditemukan</div>`;
+                    data.messages.forEach(msg => {
+                        const pic = msg.picture ? (msg.picture.startsWith('http') ? msg.picture : '../' + msg.picture) : '';
+                        const preview = msg.message.length > 60 ? msg.message.substring(0, 60) + '...' : msg.message;
+                        const highlighted = preview.replace(new RegExp(query, 'gi'), '<mark class="bg-yellow-200 dark:bg-yellow-700 rounded px-0.5">$&</mark>');
+                        html += `
+                            <div class="p-3 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b dark:border-slate-600 last:border-0" onclick="scrollToMessage(${msg.id}); searchResults.classList.add('hidden'); forumSearch.value = '';">
+                                <div class="flex items-center gap-2 mb-1">
+                                    ${pic ? `<img src="${pic}" class="w-5 h-5 rounded-full object-cover">` : ''}
+                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-200">${msg.nama}</span>
+                                    <span class="text-xs text-slate-400">${formatTime(msg.created_at)}</span>
+                                </div>
+                                <p class="text-sm text-slate-600 dark:text-slate-300">${highlighted}</p>
+                            </div>
+                        `;
+                    });
+                    searchResults.innerHTML = html;
+                    searchResults.classList.remove('hidden');
+                } else {
+                    searchResults.innerHTML = `<div class="p-4 text-center text-slate-400">Tidak ada hasil</div>`;
+                    searchResults.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error('Search error:', err);
+            }
+        }, 300);
+    });
+
+    forumSearch.addEventListener('blur', () => {
+        setTimeout(() => searchResults.classList.add('hidden'), 200);
+    });
+
+    // ==================== REACTIONS ====================
+    const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥', '👏', '💯'];
+    let reactionPickerMsgId = null;
+
+    function showReactionPicker(event, msgId) {
+        event.stopPropagation();
+        reactionPickerMsgId = msgId;
+        closeReactionDetail();
+        
+        // Remove existing picker
+        const existing = document.getElementById('reactionPicker');
+        if (existing) existing.remove();
+        
+        // Create picker
+        const picker = document.createElement('div');
+        picker.id = 'reactionPicker';
+        picker.className = 'fixed z-50 bg-white rounded-2xl shadow-xl border p-2 grid grid-cols-5 gap-1';
+        picker.innerHTML = REACTION_EMOJIS.map(e => 
+            `<button onclick="addReaction('${e}')" class="reaction-btn text-xl hover:scale-110 hover:bg-slate-100 transition p-2 rounded-lg">${e}</button>`
+        ).join('');
+        
+        // Position - center on mobile, near button on desktop
+        const btn = event.target.closest('button');
+        const rect = btn.getBoundingClientRect();
+        const isMobile = window.innerWidth < 640;
+        
+        if (isMobile) {
+            picker.style.left = '50%';
+            picker.style.transform = 'translateX(-50%)';
+            picker.style.bottom = '80px';
+        } else {
+            picker.style.left = `${Math.max(10, rect.left - 100)}px`;
+            picker.style.top = `${rect.top - 60}px`;
+        }
+        
+        document.body.appendChild(picker);
+        
+        // Close on outside click
+        setTimeout(() => {
+            document.addEventListener('click', closeReactionPicker);
+        }, 10);
+    }
+
+    function closeReactionPicker() {
+        const picker = document.getElementById('reactionPicker');
+        if (picker) picker.remove();
+        document.removeEventListener('click', closeReactionPicker);
+    }
+
+    async function addReaction(emoji) {
+        closeReactionPicker();
+        if (!reactionPickerMsgId) return;
+        
+        try {
+            const res = await fetch(`${BASE_URL}/reactions.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_id: reactionPickerMsgId, emoji: emoji })
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadReactionsForMessage(reactionPickerMsgId);
+            }
+        } catch (err) {
+            console.error('Reaction error:', err);
+        }
+    }
+
+    // Show who reacted (like WhatsApp)
+    async function showReactionDetail(event, msgId, emoji) {
+        event.stopPropagation();
+        closeReactionPicker();
+        
+        try {
+            const res = await fetch(`${BASE_URL}/reactions.php?detail=${msgId}&emoji=${encodeURIComponent(emoji)}`);
+            const data = await res.json();
+            
+            if (data.success) {
+                // Remove existing modal
+                closeReactionDetail();
+                
+                // Create modal
+                const modal = document.createElement('div');
+                modal.id = 'reactionDetailModal';
+                modal.className = 'fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center';
+                modal.onclick = (e) => { if (e.target === modal) closeReactionDetail(); };
+                
+                const usersList = data.users.map(u => `
+                    <div class="flex items-center justify-between py-2 px-4 ${u.is_me ? 'bg-blue-50' : ''}">
+                        <span class="text-slate-700">${u.name}</span>
+                        ${u.is_me ? `
+                            <button onclick="removeMyReaction(${msgId}, '${emoji}')" class="text-red-500 text-sm hover:text-red-700">
+                                Hapus
+                            </button>
+                        ` : ''}
+                    </div>
+                `).join('');
+                
+                modal.innerHTML = `
+                    <div class="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm max-h-[60vh] overflow-hidden shadow-xl">
+                        <div class="flex items-center justify-between px-4 py-3 border-b">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl">${emoji}</span>
+                                <span class="text-slate-600 font-medium">${data.users.length} orang</span>
+                            </div>
+                            <button onclick="closeReactionDetail()" class="p-1 hover:bg-slate-100 rounded-full">
+                                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="overflow-y-auto max-h-[50vh] divide-y">
+                            ${usersList}
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+            }
+        } catch (err) {
+            console.error('Load reaction detail error:', err);
+        }
+    }
+
+    function closeReactionDetail() {
+        const modal = document.getElementById('reactionDetailModal');
+        if (modal) modal.remove();
+    }
+
+    async function removeMyReaction(msgId, emoji) {
+        try {
+            const res = await fetch(`${BASE_URL}/reactions.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_id: msgId, emoji: emoji, remove: true })
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeReactionDetail();
+                loadReactionsForMessage(msgId);
+            }
+        } catch (err) {
+            console.error('Remove reaction error:', err);
+        }
+    }
+
+    async function loadReactionsForMessage(msgId) {
+        try {
+            const res = await fetch(`${BASE_URL}/reactions.php?ids=${msgId}`);
+            const data = await res.json();
+            if (data.success) {
+                renderReactions(msgId, data.reactions[msgId] || []);
+            }
+        } catch (err) {
+            console.error('Load reactions error:', err);
+        }
+    }
+
+    function renderReactions(msgId, reactions) {
+        const container = document.getElementById(`reactions-${msgId}`);
+        if (!container) return;
+        
+        if (reactions.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+        
+        container.innerHTML = reactions.map(r => `
+            <button onclick="showReactionDetail(event, ${msgId}, '${r.emoji}')" 
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${r.reacted ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300' : 'bg-slate-100 text-slate-600'} hover:scale-105 transition cursor-pointer">
+                <span>${r.emoji}</span>
+                <span>${r.count}</span>
+            </button>
+        `).join('');
+    }
+
+    // Load reactions when messages load + play sound on new messages
+    const originalLoadMessages = loadMessages;
+    let previousMaxMsgId = 0;
+    let isFirstLoad = true;
+    
+    loadMessages = async function() {
+        const beforeCount = document.querySelectorAll('[id^="msg-"]').length;
+        await originalLoadMessages();
+        
+        // Check for new messages and play sound
+        const msgElements = document.querySelectorAll('[id^="msg-"]');
+        const msgIds = Array.from(msgElements).map(el => parseInt(el.id.replace('msg-', ''))).filter(id => !isNaN(id));
+        const currentMaxId = msgIds.length > 0 ? Math.max(...msgIds) : 0;
+        
+        if (!isFirstLoad && currentMaxId > previousMaxMsgId && beforeCount < msgElements.length) {
+            // New message arrived - play sound if not from self
+            const newestMsg = document.getElementById(`msg-${currentMaxId}`);
+            if (newestMsg && !newestMsg.querySelector('.flex-row-reverse')) {
+                playNotifSound();
+            }
+        }
+        previousMaxMsgId = currentMaxId;
+        isFirstLoad = false;
+        
+        // Load reactions for visible messages
+        if (msgIds.length > 0) {
+            try {
+                const res = await fetch(`${BASE_URL}/reactions.php?ids=${msgIds.join(',')}`);
+                const data = await res.json();
+                if (data.success) {
+                    Object.keys(data.reactions).forEach(msgId => {
+                        renderReactions(msgId, data.reactions[msgId]);
+                    });
+                }
+            } catch (err) {
+                console.error('Load reactions error:', err);
+            }
+        }
+        
+        // Load polls
+        document.querySelectorAll('[data-poll-id]').forEach(el => {
+            if (!el.querySelector('.poll-widget')) {
+                loadPoll(el.dataset.pollId, el);
+            }
+        });
+    };
+
+    // Start loading messages AFTER wrapper is set up
     loadMessages();
     setInterval(() => { if (isPolling) loadMessages(); }, 2000);
+
+    // ==================== VOICE MESSAGE ====================
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordingStartTime = null;
+    let voiceTimerInterval = null;
+    let currentAudio = null;
+    let currentPlayBtn = null;
+
+    const voiceBtn = document.getElementById('voiceBtn');
+    const voiceRecordingUI = document.getElementById('voiceRecordingUI');
+    const voiceTimer = document.getElementById('voiceTimer');
+    const cancelVoiceBtn = document.getElementById('cancelVoice');
+    const sendVoiceBtn = document.getElementById('sendVoice');
+
+    // Start recording
+    voiceBtn?.addEventListener('click', async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunks.push(e.data);
+            };
+            
+            mediaRecorder.onstop = () => {
+                stream.getTracks().forEach(track => track.stop());
+            };
+            
+            mediaRecorder.start();
+            recordingStartTime = Date.now();
+            voiceRecordingUI.classList.remove('hidden');
+            document.getElementById('chatForm').querySelector('.flex.gap-2.items-center').classList.add('hidden');
+            document.getElementById('attachMenu')?.classList.add('hidden');
+            
+            // Start timer
+            voiceTimerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const mins = Math.floor(elapsed / 60);
+                const secs = elapsed % 60;
+                voiceTimer.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+            
+        } catch (err) {
+            console.error('Microphone error:', err);
+            alert('Tidak dapat mengakses mikrofon. Pastikan izin mikrofon sudah diberikan.');
+        }
+    });
+
+    // Cancel recording
+    cancelVoiceBtn?.addEventListener('click', () => {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        clearInterval(voiceTimerInterval);
+        voiceRecordingUI.classList.add('hidden');
+        document.getElementById('chatForm').querySelector('.flex.gap-2.items-center').classList.remove('hidden');
+        voiceTimer.textContent = '00:00';
+        audioChunks = [];
+    });
+
+    // Send voice message
+    sendVoiceBtn?.addEventListener('click', async () => {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        clearInterval(voiceTimerInterval);
+        
+        const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+        
+        // Wait for all chunks
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (audioChunks.length === 0) {
+            voiceRecordingUI.classList.add('hidden');
+            document.getElementById('chatForm').querySelector('.flex.gap-2.items-center').classList.remove('hidden');
+            return;
+        }
+        
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        
+        // Upload voice
+        const formData = new FormData();
+        formData.append('voice', audioBlob, 'voice.webm');
+        formData.append('duration', duration);
+        
+        try {
+            sendVoiceBtn.disabled = true;
+            sendVoiceBtn.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            
+            const uploadRes = await fetch(`${BASE_URL}/voice_upload.php`, {
+                method: 'POST',
+                body: formData
+            });
+            const uploadData = await uploadRes.json();
+            
+            if (uploadData.success) {
+                // Send message with voice
+                const sendRes = await fetch(`${BASE_URL}/forum_send.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '',
+                        voice_url: uploadData.voice_url,
+                        voice_duration: duration
+                    })
+                });
+                const sendData = await sendRes.json();
+                
+                if (sendData.success) {
+                    lastMessageId = 0;
+                    await loadMessages();
+                }
+            } else {
+                alert(uploadData.error || 'Gagal upload voice');
+            }
+        } catch (err) {
+            console.error('Voice upload error:', err);
+            alert('Gagal mengirim voice message');
+        } finally {
+            sendVoiceBtn.disabled = false;
+            sendVoiceBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>';
+            voiceRecordingUI.classList.add('hidden');
+            document.getElementById('chatForm').querySelector('.flex.gap-2.items-center').classList.remove('hidden');
+            voiceTimer.textContent = '00:00';
+            audioChunks = [];
+        }
+    });
+
+    // Voice playback functions
+    function toggleVoicePlay(btn, audioUrl) {
+        const container = btn.closest('.voice-message');
+        const playIcon = btn.querySelector('.play-icon');
+        const pauseIcon = btn.querySelector('.pause-icon');
+        const progressBar = container.querySelector('.voice-progress');
+        const currentTimeEl = container.querySelector('.voice-current-time');
+        
+        // If already playing this audio, pause it
+        if (currentAudio && currentPlayBtn === btn) {
+            if (currentAudio.paused) {
+                currentAudio.play();
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            } else {
+                currentAudio.pause();
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            }
+            return;
+        }
+        
+        // Stop any other playing audio
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+            if (currentPlayBtn) {
+                currentPlayBtn.querySelector('.play-icon').classList.remove('hidden');
+                currentPlayBtn.querySelector('.pause-icon').classList.add('hidden');
+                currentPlayBtn.closest('.voice-message').querySelector('.voice-progress').style.width = '0%';
+            }
+        }
+        
+        // Create new audio
+        currentAudio = new Audio(audioUrl);
+        currentPlayBtn = btn;
+        
+        currentAudio.addEventListener('timeupdate', () => {
+            const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+            const mins = Math.floor(currentAudio.currentTime / 60);
+            const secs = Math.floor(currentAudio.currentTime % 60);
+            currentTimeEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+        });
+        
+        currentAudio.addEventListener('ended', () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            progressBar.style.width = '0%';
+            currentTimeEl.textContent = '0:00';
+            currentAudio = null;
+            currentPlayBtn = null;
+        });
+        
+        currentAudio.play();
+        playIcon.classList.add('hidden');
+        pauseIcon.classList.remove('hidden');
+    }
+    window.toggleVoicePlay = toggleVoicePlay;
+
+    function seekVoice(event, container) {
+        if (!currentAudio || !currentPlayBtn) return;
+        
+        const voiceMessage = container.closest('.voice-message');
+        if (!voiceMessage.contains(currentPlayBtn)) return;
+        
+        const rect = container.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const percentage = x / rect.width;
+        currentAudio.currentTime = percentage * currentAudio.duration;
+    }
+    window.seekVoice = seekVoice;
+
+    // ==================== NOTIFICATIONS ====================
+    const notifDropdown = document.getElementById('notifDropdown');
+    const notifBadge = document.getElementById('notifBadge');
+    const notifList = document.getElementById('notifList');
+    let notifOpen = false;
+
+    function toggleNotifications() {
+        notifOpen = !notifOpen;
+        if (notifOpen) {
+            notifDropdown.classList.remove('hidden');
+            loadNotifications();
+        } else {
+            notifDropdown.classList.add('hidden');
+        }
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (notifOpen && !e.target.closest('#notifDropdown') && !e.target.closest('#notifBtn')) {
+            notifDropdown.classList.add('hidden');
+            notifOpen = false;
+        }
+    });
+
+    async function loadNotifications() {
+        try {
+            const res = await fetch(`${BASE_URL}/notifications.php?limit=10`);
+            const data = await res.json();
+            if (data.success) {
+                renderNotifications(data.notifications);
+                updateNotifBadge(data.unread_count);
+            }
+        } catch (err) {
+            console.error('Load notifications error:', err);
+        }
+    }
+
+    async function loadNotifCount() {
+        try {
+            const res = await fetch(`${BASE_URL}/notifications.php?count=1`);
+            const data = await res.json();
+            if (data.success) {
+                updateNotifBadge(data.count);
+            }
+        } catch (err) {}
+    }
+
+    function updateNotifBadge(count) {
+        if (count > 0) {
+            notifBadge.textContent = count > 99 ? '99+' : count;
+            notifBadge.classList.remove('hidden');
+            notifBadge.classList.add('flex');
+        } else {
+            notifBadge.classList.add('hidden');
+            notifBadge.classList.remove('flex');
+        }
+    }
+
+    function renderNotifications(notifications) {
+        if (notifications.length === 0) {
+            notifList.innerHTML = '<div class="p-6 text-center text-slate-400 text-sm">Tidak ada notifikasi</div>';
+            return;
+        }
+
+        const icons = {
+            'mention': '💬',
+            'reply': '↩️',
+            'event': '📅',
+            'badge': '🏆',
+            'announcement': '📢',
+            'system': '🔔'
+        };
+
+        notifList.innerHTML = notifications.map(n => `
+            <div class="notif-item p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 ${n.is_read ? 'opacity-60' : ''}" 
+                 onclick="handleNotifClick(${n.id}, '${n.link || ''}', ${!n.is_read})">
+                <div class="flex gap-3">
+                    <span class="text-xl">${icons[n.type] || '🔔'}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-slate-900 ${n.is_read ? '' : 'font-semibold'}">${escapeHtml(n.title)}</p>
+                        ${n.message ? `<p class="text-xs text-slate-500 truncate">${escapeHtml(n.message)}</p>` : ''}
+                        <p class="text-xs text-slate-400 mt-1">${timeAgo(n.created_at)}</p>
+                    </div>
+                    ${!n.is_read ? '<span class="w-2 h-2 bg-secondary rounded-full flex-shrink-0 mt-2"></span>' : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function timeAgo(dateStr) {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000);
+        
+        if (diff < 60) return 'Baru saja';
+        if (diff < 3600) return `${Math.floor(diff / 60)} menit lalu`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
+        if (diff < 604800) return `${Math.floor(diff / 86400)} hari lalu`;
+        return date.toLocaleDateString('id-ID');
+    }
+
+    async function handleNotifClick(id, link, markRead) {
+        if (markRead) {
+            try {
+                await fetch(`${BASE_URL}/notifications.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mark_read: true, id: id })
+                });
+                loadNotifCount();
+            } catch (err) {}
+        }
+        
+        if (link) {
+            window.location.href = link;
+        } else {
+            // Refresh list to show read state
+            loadNotifications();
+        }
+    }
+
+    async function markAllRead() {
+        try {
+            await fetch(`${BASE_URL}/notifications.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mark_all_read: true })
+            });
+            loadNotifications();
+            updateNotifBadge(0);
+        } catch (err) {
+            console.error('Mark all read error:', err);
+        }
+    }
+
+    // Load notification count on page load and poll every 30 seconds
+    loadNotifCount();
+    setInterval(loadNotifCount, 30000);
+
+    // ==================== TYPING INDICATOR ====================
+    const typingIndicator = document.getElementById('typingIndicator');
+    const typingText = document.getElementById('typingText');
+    const chatInput = document.getElementById('chatInput');
+    let typingTimeout = null;
+    let lastTypingSent = 0;
+
+    // Auto-resize textarea
+    function autoResizeTextarea() {
+        const textarea = chatInput;
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        // Change overflow when reaching max height
+        textarea.style.overflowY = textarea.scrollHeight > 120 ? 'auto' : 'hidden';
+    }
+
+    // Handle Enter key (send) and Shift+Enter (new line)
+    chatInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // Auto-resize on input
+    chatInput?.addEventListener('input', autoResizeTextarea);
+
+    // Send typing status when user types
+    chatInput?.addEventListener('input', () => {
+        const now = Date.now();
+        if (now - lastTypingSent > 2000) { // Send every 2 seconds max
+            lastTypingSent = now;
+            fetch(`${BASE_URL}/typing.php`, { method: 'POST' }).catch(() => {});
+        }
+    });
+
+    // Check who is typing
+    async function checkTyping() {
+        try {
+            const res = await fetch(`${BASE_URL}/typing.php`);
+            const data = await res.json();
+            if (data.success && data.typing.length > 0) {
+                let text = '';
+                if (data.typing.length === 1) {
+                    text = `${data.typing[0]} sedang mengetik`;
+                } else if (data.typing.length === 2) {
+                    text = `${data.typing[0]} dan ${data.typing[1]} sedang mengetik`;
+                } else {
+                    text = `${data.typing[0]} dan ${data.typing.length - 1} lainnya sedang mengetik`;
+                }
+                typingText.textContent = text;
+                typingIndicator.classList.remove('hidden');
+            } else {
+                typingIndicator.classList.add('hidden');
+            }
+        } catch (err) {}
+    }
+    setInterval(checkTyping, 2000);
+
+    // ==================== SOUND NOTIFICATION ====================
+    let soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+    let lastMessageCount = 0;
+    
+    // Create audio element
+    const notifSound = new Audio('data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYNBrv+AAAAAAAAAAAAAAAAAAAAAP/7UMQAA8AAADSAAAAAAAAANIAAAAATEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+1DEAYPAAADSAAAAAAAAANIAAAAASqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo=');
+    
+    // Toggle sound function
+    window.toggleSound = function() {
+        soundEnabled = !soundEnabled;
+        localStorage.setItem('soundEnabled', soundEnabled);
+        updateSoundIcon();
+        if (soundEnabled) {
+            notifSound.play().catch(() => {});
+        }
+    };
+
+    function updateSoundIcon() {
+        const icon = document.getElementById('soundIcon');
+        if (icon) {
+            icon.innerHTML = soundEnabled 
+                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>'
+                : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>';
+        }
+    }
+
+    function playNotifSound() {
+        if (soundEnabled) {
+            notifSound.currentTime = 0;
+            notifSound.play().catch(() => {});
+        }
+    }
+
+    // ==================== ONLINE STATUS ====================
+    async function updateOnlineStatus() {
+        try {
+            await fetch(`${BASE_URL}/online_status.php`, { method: 'POST' });
+        } catch (err) {}
+    }
+    
+    async function loadOnlineCount() {
+        try {
+            const res = await fetch(`${BASE_URL}/online_status.php`);
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('onlineCount').textContent = data.count;
+                window.onlineUsers = data.users;
+            }
+        } catch (err) {}
+    }
+    
+    function showOnlineUsers() {
+        const users = window.onlineUsers || [];
+        if (users.length === 0) {
+            alert('Tidak ada user online');
+            return;
+        }
+        
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        
+        const userList = users.map(u => {
+            const pic = u.picture ? (u.picture.startsWith('http') ? u.picture : '../' + u.picture) : '';
+            return `
+                <div class="flex items-center gap-3 p-2">
+                    ${pic ? `<img src="${pic}" class="w-8 h-8 rounded-full object-cover">` : 
+                    `<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                    </div>`}
+                    <span class="text-sm text-slate-700">${u.nama}</span>
+                    <span class="w-2 h-2 bg-green-500 rounded-full ml-auto"></span>
+                </div>
+            `;
+        }).join('');
+        
+        modal.innerHTML = `
+            <div class="bg-white rounded-xl shadow-xl max-w-sm w-full max-h-[60vh] overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="font-semibold text-slate-900">User Online (${users.length})</h3>
+                    <button onclick="this.closest('.fixed').remove()" class="text-slate-400 hover:text-slate-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-2 max-h-80 overflow-y-auto">${userList}</div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    updateOnlineStatus();
+    loadOnlineCount();
+    setInterval(updateOnlineStatus, 30000);
+    setInterval(loadOnlineCount, 30000);
+    
+    // Initialize sound icon
+    updateSoundIcon();
+
+    // ==================== POLLING ====================
+    function showPollModal() {
+        document.getElementById('pollModal').classList.remove('hidden');
+        document.getElementById('pollModal').classList.add('flex');
+        document.getElementById('pollQuestion').value = '';
+        document.getElementById('pollOptions').innerHTML = `
+            <input type="text" class="poll-option w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none text-sm" placeholder="Pilihan 1" maxlength="100">
+            <input type="text" class="poll-option w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none text-sm" placeholder="Pilihan 2" maxlength="100">
+        `;
+        document.getElementById('pollMultiple').checked = false;
+        document.getElementById('pollDuration').value = '24';
+    }
+    
+    function hidePollModal() {
+        document.getElementById('pollModal').classList.add('hidden');
+        document.getElementById('pollModal').classList.remove('flex');
+    }
+    
+    function addPollOption() {
+        const container = document.getElementById('pollOptions');
+        const count = container.querySelectorAll('.poll-option').length;
+        if (count >= 10) {
+            alert('Maksimal 10 pilihan');
+            return;
+        }
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'poll-option w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-secondary focus:border-secondary outline-none text-sm';
+        input.placeholder = `Pilihan ${count + 1}`;
+        input.maxLength = 100;
+        container.appendChild(input);
+    }
+    
+    async function createPoll() {
+        const question = document.getElementById('pollQuestion').value.trim();
+        const optionInputs = document.querySelectorAll('.poll-option');
+        const options = Array.from(optionInputs).map(i => i.value.trim()).filter(v => v);
+        const isMultiple = document.getElementById('pollMultiple').checked;
+        const duration = parseInt(document.getElementById('pollDuration').value);
+        
+        if (!question) {
+            alert('Masukkan pertanyaan');
+            return;
+        }
+        if (options.length < 2) {
+            alert('Minimal 2 pilihan');
+            return;
+        }
+        
+        try {
+            const res = await fetch(`${BASE_URL}/poll.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ create: true, question, options, is_multiple: isMultiple, duration })
+            });
+            const text = await res.text();
+            console.log('Poll API response:', text);
+            
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                alert('Error parsing response: ' + text);
+                return;
+            }
+            
+            if (data.success && data.poll_id) {
+                // Send poll as special message
+                const sent = await sendMessage(`[poll:${data.poll_id}]`);
+                if (sent) {
+                    hidePollModal();
+                    lastMessageId = 0;
+                    await loadMessages();
+                } else {
+                    alert('Poll dibuat tapi gagal mengirim ke chat');
+                }
+            } else {
+                alert(data.error || 'Gagal membuat poll');
+            }
+        } catch (err) {
+            console.error('Create poll error:', err);
+            alert('Gagal membuat poll: ' + err.message);
+        }
+    }
+    
+    async function loadPoll(pollId, container) {
+        try {
+            const res = await fetch(`${BASE_URL}/poll.php?id=${pollId}`);
+            const data = await res.json();
+            
+            if (data.success) {
+                renderPoll(data.poll, container);
+            }
+        } catch (err) {
+            container.innerHTML = '<p class="text-sm text-red-500">Gagal memuat poll</p>';
+        }
+    }
+    
+    function renderPoll(poll, container) {
+        const totalVotes = poll.total_votes;
+        const hasVoted = poll.has_voted;
+        const isEnded = poll.is_ended;
+        const canRevote = hasVoted && !isEnded && !poll.is_multiple; // Single choice bisa ganti pilihan
+        
+        let optionsHtml = poll.options.map((opt, idx) => {
+            const count = poll.vote_counts[idx] || 0;
+            const percent = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+            const isSelected = poll.user_votes.includes(idx);
+            
+            if (isEnded) {
+                // Poll sudah berakhir - tampilkan hasil saja
+                return `
+                    <div class="relative mb-2">
+                        <div class="absolute inset-0 bg-secondary/20 rounded-lg" style="width: ${percent}%"></div>
+                        <div class="relative flex justify-between items-center px-3 py-2 border border-slate-200 rounded-lg bg-white/50">
+                            <span class="text-sm text-slate-700 ${isSelected ? 'font-semibold' : ''}">${isSelected ? '✓ ' : ''}${opt}</span>
+                            <span class="text-xs text-slate-600">${percent}% (${count})</span>
+                        </div>
+                    </div>
+                `;
+            } else if (hasVoted) {
+                // Sudah vote tapi masih bisa ganti (single choice)
+                return `
+                    <button onclick="votePoll(${poll.id}, ${idx})" class="relative w-full mb-2 ${!poll.is_multiple ? 'cursor-pointer hover:opacity-80' : ''}" ${poll.is_multiple ? 'disabled' : ''}>
+                        <div class="absolute inset-0 bg-secondary/20 rounded-lg" style="width: ${percent}%"></div>
+                        <div class="relative flex justify-between items-center px-3 py-2 border ${isSelected ? 'border-secondary bg-secondary/10' : 'border-slate-200 bg-white/50'} rounded-lg">
+                            <span class="text-sm text-slate-700 ${isSelected ? 'font-semibold text-secondary' : ''}">${isSelected ? '✓ ' : ''}${opt}</span>
+                            <span class="text-xs text-slate-600">${percent}% (${count})</span>
+                        </div>
+                    </button>
+                `;
+            } else {
+                // Belum vote
+                return `
+                    <button onclick="votePoll(${poll.id}, ${idx})" class="w-full text-left px-3 py-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-100 hover:border-secondary transition mb-2">
+                        <span class="text-sm text-slate-700">${opt}</span>
+                    </button>
+                `;
+            }
+        }).join('');
+        
+        const revoteHint = canRevote ? '<span class="text-xs text-slate-500"> · Tap untuk ganti</span>' : '';
+        
+        container.innerHTML = `
+            <div class="poll-widget bg-white border border-slate-200 rounded-xl p-3 max-w-xs shadow-sm">
+                <div class="flex items-center gap-2 mb-2">
+                    <svg class="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <span class="text-xs font-medium text-secondary">POLLING</span>
+                    ${isEnded ? '<span class="text-xs text-red-500 ml-auto">Berakhir</span>' : ''}
+                </div>
+                <p class="font-medium text-slate-800 text-sm mb-3">${poll.question}</p>
+                ${optionsHtml}
+                <p class="text-xs text-slate-500 mt-2">${totalVotes} suara${poll.is_multiple ? ' · Pilihan ganda' : ''}${revoteHint}</p>
+            </div>
+        `;
+    }
+    
+    async function votePoll(pollId, optionIdx) {
+        try {
+            const res = await fetch(`${BASE_URL}/poll.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ vote: true, poll_id: pollId, options: [optionIdx] })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                // Reload all polls
+                document.querySelectorAll('[data-poll-id]').forEach(el => {
+                    loadPoll(el.dataset.pollId, el);
+                });
+            } else {
+                alert(data.error || 'Gagal vote');
+            }
+        } catch (err) {
+            console.error('Vote error:', err);
+        }
+    }
+    window.votePoll = votePoll;
     </script>
 
 </body>

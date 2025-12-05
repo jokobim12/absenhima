@@ -1,0 +1,65 @@
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Protect sensitive files
+<FilesMatch "^\.env|\.git|composer\.(json|lock)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect config directory (allow PHP execution but deny direct access)
+<FilesMatch "^(koneksi|google|settings|helpers|lang|ratelimit|push_helper|gamification)\.php$">
+    <If "%{REQUEST_URI} =~ m#^/absenhima/config/#">
+        Order allow,deny
+        Deny from all
+    </If>
+</FilesMatch>
+
+# Protect uploads from PHP execution
+<Directory "uploads">
+    <FilesMatch "\.php$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</Directory>
+
+# Disable directory listing
+Options -Indexes
+
+# Enable compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType application/pdf "access plus 1 month"
+</IfModule>
+
+# PHP settings (if using mod_php)
+<IfModule mod_php.c>
+    php_flag display_errors off
+    php_flag log_errors on
+    php_value max_execution_time 60
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+</IfModule>
+
+# Prevent access to backup files
+<FilesMatch "\.(bak|backup|sql|log)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

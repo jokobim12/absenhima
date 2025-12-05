@@ -40,12 +40,13 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabel Tokens (QR Dinamis)
+-- Tabel Tokens (QR Dinamis, 1 token = 1 orang)
 CREATE TABLE IF NOT EXISTS tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,
     event_id INT NOT NULL,
     token VARCHAR(64) NOT NULL,
     expired_at DATETIME NOT NULL,
+    is_used TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );
