@@ -3,22 +3,13 @@ include "auth.php";
 include "../config/koneksi.php";
 include "../config/helpers.php";
 
-// Handle delete dengan CSRF protection
+// Handle delete dengan CSRF protection (soft delete)
 if(isset($_POST['delete'])){
     verifyCsrfOrDie();
     $id = intval($_POST['delete']);
     
-    $stmt = mysqli_prepare($conn, "DELETE FROM absen WHERE event_id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-    
-    $stmt = mysqli_prepare($conn, "DELETE FROM tokens WHERE event_id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-    
-    $stmt = mysqli_prepare($conn, "DELETE FROM events WHERE id = ?");
+    // Soft delete - tandai sebagai dihapus, data tetap ada untuk history user
+    $stmt = mysqli_prepare($conn, "UPDATE events SET is_deleted = 1 WHERE id = ?");
     mysqli_stmt_bind_param($stmt, "i", $id);
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
@@ -31,6 +22,7 @@ $events = mysqli_query($conn, "
     SELECT e.*, COUNT(a.id) as peserta_count 
     FROM events e 
     LEFT JOIN absen a ON a.event_id = e.id 
+    WHERE e.is_deleted = 0
     GROUP BY e.id 
     ORDER BY e.id DESC
 ");
