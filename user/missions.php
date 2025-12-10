@@ -10,8 +10,19 @@ $today = date('Y-m-d');
 
 // Get activities
 $daily_claimed = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM point_history WHERE user_id = $user_id AND activity_type = 'daily_login' AND DATE(created_at) = '$today'"));
-$chat_today = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM point_history WHERE user_id = $user_id AND activity_type = 'chat' AND DATE(created_at) = '$today'"))['c'];
-$attendance = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM absen WHERE user_id = $user_id AND DATE(created_at) = '$today'"));
+$chat_today = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM forum_messages WHERE user_id = $user_id AND DATE(created_at) = '$today' AND is_deleted = 0"))['c'];
+
+// Cek attendance untuk event biasa dan event besar
+$attendance_normal = mysqli_fetch_assoc(mysqli_query($conn, "
+    SELECT a.id FROM absen a 
+    JOIN events e ON a.event_id = e.id 
+    WHERE a.user_id = $user_id AND DATE(a.created_at) = '$today' AND (e.is_big_event = 0 OR e.is_big_event IS NULL)
+"));
+$attendance_big = mysqli_fetch_assoc(mysqli_query($conn, "
+    SELECT a.id FROM absen a 
+    JOIN events e ON a.event_id = e.id 
+    WHERE a.user_id = $user_id AND DATE(a.created_at) = '$today' AND e.is_big_event = 1
+"));
 
 $streak = intval($user['daily_streak']);
 $points = intval($user['total_points']);
@@ -214,21 +225,39 @@ $total_claimable = ($can_claim_daily ? 1 : 0) + count($milestones);
                     <?php endif; ?>
                 </div>
 
-                <!-- Hadir Event -->
-                <div class="p-4 flex items-center gap-4 <?= $attendance ? 'bg-slate-50' : '' ?>">
-                    <div class="w-10 h-10 rounded-lg <?= $attendance ? 'bg-emerald-100' : 'bg-slate-100' ?> flex items-center justify-center flex-shrink-0">
-                        <?php if ($attendance): ?>
+                <!-- Hadir Event Biasa -->
+                <div class="p-4 flex items-center gap-4 <?= $attendance_normal ? 'bg-slate-50' : '' ?>">
+                    <div class="w-10 h-10 rounded-lg <?= $attendance_normal ? 'bg-emerald-100' : 'bg-slate-100' ?> flex items-center justify-center flex-shrink-0">
+                        <?php if ($attendance_normal): ?>
                             <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                         <?php else: ?>
                             <span class="text-lg">📍</span>
                         <?php endif; ?>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="font-medium text-slate-900 <?= $attendance ? 'line-through opacity-60' : '' ?>">Hadir di Event</p>
-                        <p class="text-sm text-slate-500">Absen di event hari ini</p>
+                        <p class="font-medium text-slate-900 <?= $attendance_normal ? 'line-through opacity-60' : '' ?>">Hadir di Event</p>
+                        <p class="text-sm text-slate-500">Absen di event biasa</p>
                     </div>
-                    <span class="text-sm <?= $attendance ? 'text-emerald-500 font-semibold' : 'text-slate-400' ?> flex-shrink-0">
-                        <?= $attendance ? 'Selesai' : '+5 poin' ?>
+                    <span class="text-sm <?= $attendance_normal ? 'text-emerald-500 font-semibold' : 'text-slate-400' ?> flex-shrink-0">
+                        <?= $attendance_normal ? 'Selesai' : '+5 poin' ?>
+                    </span>
+                </div>
+
+                <!-- Hadir Event Besar -->
+                <div class="p-4 flex items-center gap-4 <?= $attendance_big ? 'bg-slate-50' : '' ?>">
+                    <div class="w-10 h-10 rounded-lg <?= $attendance_big ? 'bg-emerald-100' : 'bg-orange-100' ?> flex items-center justify-center flex-shrink-0">
+                        <?php if ($attendance_big): ?>
+                            <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        <?php else: ?>
+                            <span class="text-lg">⭐</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-slate-900 <?= $attendance_big ? 'line-through opacity-60' : '' ?>">Hadir di Event Besar</p>
+                        <p class="text-sm text-slate-500">Absen di event besar/penting</p>
+                    </div>
+                    <span class="text-sm <?= $attendance_big ? 'text-emerald-500 font-semibold' : 'text-orange-500' ?> flex-shrink-0">
+                        <?= $attendance_big ? 'Selesai' : '+10 poin' ?>
                     </span>
                 </div>
             </div>

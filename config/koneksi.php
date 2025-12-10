@@ -4,6 +4,9 @@
  * Credentials diambil dari environment variable atau database settings
  */
 
+// Set timezone Indonesia (WITA - UTC+8)
+date_default_timezone_set('Asia/Makassar');
+
 // Cek environment variable dulu, fallback ke default untuk development
 $host = getenv('DB_HOST') ?: 'localhost';
 $user = getenv('DB_USER') ?: 'root';
@@ -23,4 +26,7 @@ if (!$conn) {
 
 // Set charset untuk keamanan
 mysqli_set_charset($conn, "utf8mb4");
+
+// Set MySQL timezone ke WITA (UTC+8)
+mysqli_query($conn, "SET time_zone = '+08:00'");
 ?>
