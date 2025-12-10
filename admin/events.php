@@ -3,6 +3,12 @@ include "auth.php";
 include "../config/koneksi.php";
 include "../config/helpers.php";
 
+// Cek dan tambah kolom is_deleted jika belum ada
+$check_col = mysqli_query($conn, "SHOW COLUMNS FROM events LIKE 'is_deleted'");
+if (mysqli_num_rows($check_col) == 0) {
+    mysqli_query($conn, "ALTER TABLE events ADD COLUMN is_deleted TINYINT(1) DEFAULT 0");
+}
+
 // Handle delete dengan CSRF protection (soft delete)
 if(isset($_POST['delete'])){
     verifyCsrfOrDie();

@@ -518,6 +518,55 @@ $active_tab = $_GET['tab'] ?? 'branding';
                             </div>
                         </div>
 
+                        <!-- Daftar Subscriber -->
+                        <?php
+                        $subscribers = mysqli_query($conn, "
+                            SELECT ps.id, ps.user_id, ps.created_at, u.nama, u.nim, u.picture,
+                                   CASE WHEN LOCATE('android', LOWER(ps.endpoint)) > 0 THEN 'Android'
+                                        WHEN LOCATE('apple', LOWER(ps.endpoint)) > 0 OR LOCATE('safari', LOWER(ps.endpoint)) > 0 THEN 'iOS/Safari'
+                                        WHEN LOCATE('mozilla', LOWER(ps.endpoint)) > 0 THEN 'Firefox'
+                                        WHEN LOCATE('fcm', LOWER(ps.endpoint)) > 0 OR LOCATE('google', LOWER(ps.endpoint)) > 0 THEN 'Chrome'
+                                        ELSE 'Browser' END as device_type
+                            FROM push_subscriptions ps
+                            LEFT JOIN users u ON ps.user_id = u.id
+                            ORDER BY ps.created_at DESC
+                        ");
+                        ?>
+                        <div class="p-4 bg-gray-50 rounded-xl">
+                            <h3 class="text-sm font-medium text-gray-900 mb-3">Daftar Subscriber (<?= mysqli_num_rows($subscribers) ?>)</h3>
+                            <?php if (mysqli_num_rows($subscribers) > 0): ?>
+                            <div class="max-h-64 overflow-y-auto space-y-2">
+                                <?php while ($sub = mysqli_fetch_assoc($subscribers)): ?>
+                                <div class="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100">
+                                    <div class="flex items-center gap-3">
+                                        <?php if ($sub['picture']): ?>
+                                            <img src="<?= htmlspecialchars($sub['picture']) ?>" class="w-8 h-8 rounded-full object-cover">
+                                        <?php else: ?>
+                                            <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                                </svg>
+                                            </div>
+                                        <?php endif; ?>
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-900"><?= htmlspecialchars($sub['nama'] ?? 'Unknown') ?></p>
+                                            <p class="text-xs text-gray-500"><?= htmlspecialchars($sub['nim'] ?? '-') ?></p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                            <?= $sub['device_type'] ?>
+                                        </span>
+                                        <p class="text-xs text-gray-400 mt-1"><?= date('d M Y', strtotime($sub['created_at'])) ?></p>
+                                    </div>
+                                </div>
+                                <?php endwhile; ?>
+                            </div>
+                            <?php else: ?>
+                            <p class="text-sm text-gray-500">Belum ada subscriber</p>
+                            <?php endif; ?>
+                        </div>
+
                         <!-- Info -->
                         <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
                             <h3 class="text-sm font-medium text-blue-900 mb-2">Cara Kerja</h3>

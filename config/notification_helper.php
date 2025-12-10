@@ -3,6 +3,11 @@
  * Helper functions untuk sistem notifikasi
  */
 
+// Include push helper untuk web push notifications
+if (file_exists(__DIR__ . '/push_helper.php')) {
+    include_once __DIR__ . '/push_helper.php';
+}
+
 /**
  * Buat notifikasi untuk satu user
  */
@@ -16,7 +21,7 @@ function createNotification($conn, $user_id, $type, $title, $message = '', $link
 /**
  * Broadcast notifikasi ke semua user aktif
  */
-function broadcastNotification($conn, $type, $title, $message = '', $link = null, $data = null) {
+function broadcastNotification($conn, $type, $title, $message = '', $link = null, $data = null, $sendPush = true) {
     // Get all active users
     $result = $conn->query("SELECT id FROM users WHERE id > 0");
     
@@ -35,6 +40,13 @@ function broadcastNotification($conn, $type, $title, $message = '', $link = null
     }
     
     $stmt->close();
+    
+    // Kirim Web Push Notification ke HP
+    if ($sendPush && function_exists('sendNotificationToAllUsers')) {
+        $url = '/user/' . ($link ?: 'dashboard.php');
+        @sendNotificationToAllUsers($conn, $title, $message, $url);
+    }
+    
     return $count;
 }
 

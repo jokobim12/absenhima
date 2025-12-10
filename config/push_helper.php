@@ -219,11 +219,16 @@ function computeECDH($privateKey, $publicKeyBinary) {
     $y = substr($publicKeyBinary, 33, 32);
     
     $pubKeyPem = createPublicKeyPem($x, $y);
+    $peerKey = openssl_pkey_get_public($pubKeyPem);
     
-    $sharedSecret = '';
-    $result = openssl_pkey_derive($pubKeyPem, $privateKey, $sharedSecret, 32);
+    if (!$peerKey) {
+        return false;
+    }
     
-    if (!$result) {
+    // PHP 8.x - openssl_pkey_derive returns the shared secret directly
+    $sharedSecret = openssl_pkey_derive($peerKey, $privateKey, 32);
+    
+    if ($sharedSecret === false) {
         return false;
     }
     
