@@ -2,6 +2,7 @@
 include "auth.php";
 include "../config/koneksi.php";
 include "../config/helpers.php";
+include "../config/notification_helper.php";
 
 $success = '';
 $error = '';
@@ -55,6 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save'])) {
         
         if (mysqli_stmt_execute($stmt)) {
             $success = $id > 0 ? 'Pengumuman berhasil diupdate' : 'Pengumuman berhasil dibuat';
+            
+            // Kirim notifikasi ke semua user untuk pengumuman baru
+            if ($id == 0) {
+                notifyNewAnnouncement($conn, $title, $content, $type);
+            }
         } else {
             $error = 'Gagal menyimpan pengumuman';
         }

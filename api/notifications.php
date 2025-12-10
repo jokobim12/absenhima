@@ -1,4 +1,11 @@
 <?php
+session_set_cookie_params([
+    'lifetime' => 3600,
+    'path' => '/',
+    'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
 session_start();
 header('Content-Type: application/json');
 
@@ -13,32 +20,24 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = intval($_SESSION['user_id']);
 
-// Create table if not exists
-$conn->query("CREATE TABLE IF NOT EXISTS notifications (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT,
-    link VARCHAR(255) DEFAULT NULL,
-    data JSON DEFAULT NULL,
-    is_read TINYINT(1) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_user_id (user_id),
-    INDEX idx_is_read (is_read),
-    INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
 // GET - Get notifications
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Get unpaid iuran count
-    $unpaid_iuran = $conn->query("
-        SELECT COUNT(*) as count, COALESCE(SUM(i.nominal), 0) as total
-        FROM iuran i
-        LEFT JOIN iuran_payments ip ON ip.iuran_id = i.id AND ip.user_id = $user_id
-        WHERE i.status = 'active' AND ip.id IS NULL
-    ")->fetch_assoc();
-    $unpaid_count = (int)$unpaid_iuran['count'];
+    // Get unpaid iuran count (skip if table doesn't exist)
+    $unpaid_count = 0;
+    $unpaid_total = 0;
+    $iuran_check = $conn->query("SHOW TABLES LIKE 'iuran'");
+    if ($iuran_check && $iuran_check->num_rows > 0) {
+        $unpaid_result = $conn->query("
+            SELECT COUNT(*) as count, COALESCE(SUM(i.nominal), 0) as total
+            FROM iuran i
+            LEFT JOIN iuran_payments ip ON ip.iuran_id = i.id AND ip.user_id = $user_id
+            WHERE i.status = 'active' AND ip.id IS NULL
+        ");
+        if ($unpaid_result && $row = $unpaid_result->fetch_assoc()) {
+            $unpaid_count = (int)$row['count'];
+            $unpaid_total = (int)$row['total'];
+        }
+    }
     
     // Get unread count
     if (isset($_GET['count'])) {
@@ -66,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'id' => 'iuran',
             'type' => 'iuran',
             'title' => "💰 {$unpaid_count} iuran belum dibayar",
-            'message' => 'Total Rp ' . number_format($unpaid_iuran['total'], 0, ',', '.') . ' - Bayar ke bendahara',
+            'message' => 'Total Rp ' . number_format($unpaid_total, 0, ',', '.') . ' - Bayar ke bendahara',
             'link' => 'iuran.php',
             'data' => null,
             'is_read' => false,
@@ -134,6 +133,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($data['cleanup'])) {
         $conn->query("DELETE FROM notifications WHERE user_id = $user_id AND id NOT IN (SELECT id FROM (SELECT id FROM notifications WHERE user_id = $user_id ORDER BY created_at DESC LIMIT 100) as t)");
         echo json_encode(['success' => true]);
+        exit;
+    }
+    
+    // Delete single notification
+    if (isset($data['delete']) && isset($data['id'])) {
+        $id = intval($data['id']);
+        $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
+        $stmt->bind_param("ii", $id, $user_id);
+        $stmt->execute();
+        echo json_encode(['success' => true, 'deleted' => $stmt->affected_rows]);
+        exit;
+    }
+    
+    // Delete all notifications
+    if (isset($data['delete_all'])) {
+        $stmt = $conn->prepare("DELETE FROM notifications WHERE user_id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        echo json_encode(['success' => true, 'deleted' => $stmt->affected_rows]);
         exit;
     }
     

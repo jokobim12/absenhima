@@ -2,6 +2,7 @@
 include "auth.php";
 include "../config/koneksi.php";
 include "../config/helpers.php";
+include "../config/notification_helper.php";
 
 // Handle create iuran
 if (isset($_POST['create'])) {
@@ -15,6 +16,9 @@ if (isset($_POST['create'])) {
     $stmt = $conn->prepare("INSERT INTO iuran (nama, nominal, deskripsi, event_id, deadline) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("sisis", $nama, $nominal, $deskripsi, $event_id, $deadline);
     $stmt->execute();
+    
+    // Kirim notifikasi ke semua user
+    notifyNewIuran($conn, $nama, $nominal, $deadline);
     
     header("Location: iuran.php?msg=created");
     exit;

@@ -1,6 +1,7 @@
 <?php
 include "auth.php";
 include "../config/koneksi.php";
+include "../config/notification_helper.php";
 
 if(!isset($_GET['id'])){
     header("Location: events.php");
@@ -34,6 +35,11 @@ $stmt = mysqli_prepare($conn, "INSERT INTO tokens(event_id, token, expired_at) V
 mysqli_stmt_bind_param($stmt, "iss", $event_id, $token, $expired_at);
 mysqli_stmt_execute($stmt);
 mysqli_stmt_close($stmt);
+
+// Kirim notifikasi ke semua user
+if ($event) {
+    notifyEventStarted($conn, $event_id, $event['nama_event']);
+}
 
 // Send push notification (dengan error handling)
 // Dinonaktifkan sementara karena compatibility issue dengan PHP version

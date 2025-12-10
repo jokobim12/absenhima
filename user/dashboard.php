@@ -74,12 +74,43 @@ $pending_perms = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT COUNT(*) as c FROM permissions WHERE user_id = $user_id AND status = 'pending'
 "))['c'] ?? 0;
 
-// Gamification data
+// Gamification - Auto update streak (tanpa poin), poin harus claim manual
+$stmt_daily = mysqli_prepare($conn, "SELECT last_active_date, daily_streak, total_points, longest_streak FROM users WHERE id = ?");
+mysqli_stmt_bind_param($stmt_daily, "i", $user_id);
+mysqli_stmt_execute($stmt_daily);
+$user_daily = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_daily));
+mysqli_stmt_close($stmt_daily);
+
+$today = date('Y-m-d');
+$yesterday = date('Y-m-d', strtotime('-1 day'));
+$last_active = $user_daily['last_active_date'];
+$user_streak = intval($user_daily['daily_streak']);
+$longest_streak = intval($user_daily['longest_streak']);
+
+// Auto update streak jika belum login hari ini
+if ($last_active != $today) {
+    if ($last_active == $yesterday) {
+        $user_streak++;
+    } else {
+        $user_streak = 1;
+    }
+    if ($user_streak > $longest_streak) {
+        $longest_streak = $user_streak;
+    }
+    // Update streak only, not points
+    $stmt_upd = mysqli_prepare($conn, "UPDATE users SET last_active_date = ?, daily_streak = ?, longest_streak = ? WHERE id = ?");
+    mysqli_stmt_bind_param($stmt_upd, "siii", $today, $user_streak, $longest_streak, $user_id);
+    mysqli_stmt_execute($stmt_upd);
+    mysqli_stmt_close($stmt_upd);
+}
+
+// Cek misi yang bisa di-claim
+$can_claim_daily = !mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM point_history WHERE user_id = $user_id AND activity_type = 'daily_login' AND DATE(created_at) = '$today'"));
+$pending_claims = $can_claim_daily ? 1 : 0;
+
 $user_badges = getUserBadges($conn, $user_id);
-checkDailyLogin($conn, $user_id); // Check and award daily login points
 $user_rank = getUserRank($conn, $user_id);
-$user_streak = $user['daily_streak'] ?? 0;
-$user_points = $user['total_points'] ?? 0;
+$user_points = $user_daily['total_points'] ?? 0;
 
 // Unpaid iuran
 $unpaid_iuran = $conn->query("
@@ -140,23 +171,100 @@ $languages = getAvailableLanguages();
         .reaction-btn:hover { transform: scale(1.2); }
         .reaction-btn.active { background: rgba(59, 130, 246, 0.2); }
         /* Dark mode overrides for better contrast */
-        .dark .bg-white { background-color: #111111 !important; }
-        .dark .bg-slate-50 { background-color: #0a0a0a !important; }
-        .dark .bg-slate-100 { background-color: #1a1a1a !important; }
-        .dark .border-slate-200 { border-color: #2a2a2a !important; }
-        .dark .border-slate-100 { border-color: #1a1a1a !important; }
-        .dark .text-slate-900 { color: #ffffff !important; }
-        .dark .text-slate-700 { color: #e5e5e5 !important; }
-        .dark .text-slate-600 { color: #d4d4d4 !important; }
-        .dark .text-slate-500 { color: #a3a3a3 !important; }
-        .dark .text-slate-400 { color: #737373 !important; }
-        .dark .bg-white\/80 { background-color: rgba(17, 17, 17, 0.9) !important; }
-        .dark .hover\:bg-slate-100:hover { background-color: #2a2a2a !important; }
-        .dark .hover\:bg-slate-50:hover { background-color: #1a1a1a !important; }
-        .dark .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5) !important; }
-        .dark textarea, .dark input[type="text"] { background-color: #1a1a1a !important; border-color: #333 !important; color: #e5e5e5 !important; }
-        .dark textarea::placeholder, .dark input::placeholder { color: #666 !important; }
+        .dark .bg-white { background-color: #1a1a1a !important; }
+        .dark .bg-slate-50 { background-color: #111111 !important; }
+        .dark .bg-slate-100 { background-color: #222222 !important; }
+        .dark .bg-slate-200 { background-color: #2a2a2a !important; }
+        .dark .border-slate-200 { border-color: #333333 !important; }
+        .dark .border-slate-100 { border-color: #2a2a2a !important; }
+        .dark .text-slate-900 { color: #f5f5f5 !important; }
+        .dark .text-slate-800 { color: #e5e5e5 !important; }
+        .dark .text-slate-700 { color: #d4d4d4 !important; }
+        .dark .text-slate-600 { color: #b3b3b3 !important; }
+        .dark .text-slate-500 { color: #999999 !important; }
+        .dark .text-slate-400 { color: #888888 !important; }
+        .dark .bg-white\/80 { background-color: rgba(26, 26, 26, 0.95) !important; }
+        .dark .hover\:bg-slate-100:hover { background-color: #333333 !important; }
+        .dark .hover\:bg-slate-50:hover { background-color: #2a2a2a !important; }
+        .dark .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.15) !important; }
+        .dark .hover\:bg-yellow-50:hover { background-color: rgba(234, 179, 8, 0.15) !important; }
+        .dark .hover\:bg-amber-50:hover { background-color: rgba(245, 158, 11, 0.15) !important; }
+        .dark .hover\:bg-blue-50:hover { background-color: rgba(59, 130, 246, 0.15) !important; }
+        .dark .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.6) !important; }
+        .dark .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5) !important; }
+        .dark .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.4) !important; }
+        .dark textarea, .dark input[type="text"], .dark input[type="search"] { 
+            background-color: #222222 !important; 
+            border-color: #444444 !important; 
+            color: #e5e5e5 !important; 
+        }
+        .dark textarea::placeholder, .dark input::placeholder { color: #777777 !important; }
+        .dark select { background-color: #222222 !important; color: #e5e5e5 !important; }
+        /* Dark mode for chat bubbles */
+        .dark .bg-white.border.border-slate-200 { background-color: #2a2a2a !important; border-color: #404040 !important; }
+        .dark .bg-white.border.border-slate-200 p { color: #e5e5e5 !important; }
+        .dark .bg-white.border.border-slate-200 .text-slate-400 { color: #888888 !important; }
+        .dark .bg-white.border.border-slate-200 .text-secondary { color: #60a5fa !important; }
+        /* Dark mode for file attachment in chat */
+        .dark .bg-slate-100 { background-color: #333333 !important; }
+        .dark .bg-slate-100 .text-slate-700 { color: #e5e5e5 !important; }
+        .dark .bg-slate-100 .text-slate-500 { color: #999999 !important; }
+        /* Dark mode for action buttons popup */
+        .dark .bg-white.rounded-lg.shadow-lg { background-color: #252525 !important; border-color: #3a3a3a !important; }
+        /* Dark mode for emoji/sticker picker */
+        .dark #emojiPicker > div, .dark #stickerPicker > div:last-child { background-color: #1e1e1e !important; border-color: #3a3a3a !important; }
+        .dark .emoji-btn:hover, .dark .sticker-tab:hover { background-color: #333333 !important; }
+        .dark .sticker-tab.text-secondary { background-color: transparent !important; }
+        /* Dark mode for dropdowns */
+        .dark #mentionDropdown, .dark #searchResults, .dark #notifDropdown { background-color: #1e1e1e !important; border-color: #3a3a3a !important; }
+        /* Dark mode for pinned banner */
+        .dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.1) !important; }
+        .dark .border-amber-200 { border-color: rgba(245, 158, 11, 0.3) !important; }
+        .dark .text-amber-700, .dark .text-amber-800 { color: #fbbf24 !important; }
+        /* Dark mode for reply preview */
+        .dark .bg-blue-50 { background-color: rgba(59, 130, 246, 0.15) !important; }
+        .dark .text-blue-700, .dark .text-blue-600 { color: #60a5fa !important; }
+        /* Dark mode for green elements */
+        .dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.15) !important; }
+        .dark .text-green-600, .dark .text-green-700 { color: #4ade80 !important; }
+        /* Dark mode for typing indicator */
+        .dark .bg-slate-50\/80 { background-color: rgba(17, 17, 17, 0.9) !important; }
+        /* Scrollbar styling - konsisten untuk light & dark */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+        .dark ::-webkit-scrollbar-track { background: #1a1a1a; }
+        .dark ::-webkit-scrollbar-thumb { background: #444; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #555; }
+        /* Dark mode for file/voice elements */
+        .dark .voice-message { background-color: #2a2a2a !important; }
+        .dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.15) !important; }
+        /* Dark mode for polls */
+        .dark .poll-option { background-color: #252525 !important; border-color: #3a3a3a !important; }
+        .dark .poll-option:hover { background-color: #333333 !important; }
+        /* Dark mode for reactions */
+        .dark .reactions-display button { background-color: #2a2a2a !important; }
+        .dark .bg-blue-100 { background-color: rgba(59, 130, 246, 0.2) !important; }
+        /* Dark mode for attachment menu */
+        .dark #attachMenu { background-color: #1e1e1e !important; }
+        /* Dark mode for image preview */
+        .dark #imagePreview { background-color: #1e1e1e !important; border-color: #3a3a3a !important; }
+        /* Dark mode mobile overlay */
+        .dark #emojiPicker > div:first-child, .dark #stickerPicker > div:first-child { background-color: rgba(0,0,0,0.7) !important; }
+        /* Date separator */
+        .dark .bg-slate-200.text-slate-600 { background-color: #333 !important; color: #aaa !important; }
         #chatInput { min-height: 40px; line-height: 1.4; }
+        /* Toast notification animation */
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        @keyframes pulseOnce { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .animate-slide-in { animation: slideIn 0.3s ease-out; }
+        .animate-slide-out { animation: slideOut 0.3s ease-in; }
+        .animate-pulse-once { animation: pulseOnce 1s ease-in-out 3; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        /* Dark mode toast */
+        .dark #notifToast { background-color: #1e1e1e !important; border-color: #3a3a3a !important; }
     </style>
 </head>
 <body class="min-h-screen transition-colors duration-300">
@@ -212,7 +320,11 @@ $languages = getAvailableLanguages();
                     <div id="notifDropdown" class="hidden fixed sm:absolute left-2 right-2 sm:left-auto sm:right-0 top-14 sm:top-full sm:mt-2 w-auto sm:w-96 bg-white rounded-xl shadow-xl border border-slate-200 z-50 max-h-[70vh] overflow-hidden">
                         <div class="p-3 border-b border-slate-100 flex justify-between items-center">
                             <h3 class="font-semibold text-slate-900">Notifikasi</h3>
-                            <button onclick="markAllRead()" class="text-xs text-secondary hover:underline">Tandai semua dibaca</button>
+                            <div class="flex gap-2">
+                                <button onclick="markAllRead()" class="text-xs text-secondary hover:underline">Tandai dibaca</button>
+                                <span class="text-slate-300">|</span>
+                                <button onclick="deleteAllNotifs()" class="text-xs text-red-500 hover:underline">Hapus semua</button>
+                            </div>
                         </div>
                         <div id="notifList" class="overflow-y-auto max-h-80">
                             <div class="p-4 text-center text-slate-400 text-sm">Memuat...</div>
@@ -406,7 +518,7 @@ $languages = getAvailableLanguages();
                     </div>
                     
                     <!-- Chat Input -->
-                    <div class="p-3 border-t border-slate-100">
+                    <div class="p-3 border-t border-slate-100 relative">
                         <div id="replyPreview"></div>
                         <div id="imagePreview" class="hidden mb-2"></div>
                         <div id="mentionDropdown" class="hidden absolute bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto z-50"></div>
@@ -465,9 +577,12 @@ $languages = getAvailableLanguages();
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
                                     </svg>
                                 </button>
-                                <button type="submit" id="sendBtn" class="w-10 h-10 flex items-center justify-center bg-secondary text-white rounded-full hover:bg-secondary/90 transition flex-shrink-0">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                <button type="submit" id="sendBtn"
+                                    class="w-10 h-10 flex items-center justify-center bg-secondary text-white rounded-full hover:bg-secondary/90 transition flex-shrink-0">
+                                    <svg class="w-5 h-5 transform rotate-90 -translate-x-[-1px]" 
+                                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                                     </svg>
                                 </button>
                             </div>
@@ -536,8 +651,9 @@ $languages = getAvailableLanguages();
                             </div>
                         </div>
                         <!-- Emoji Picker Dropdown -->
-                        <div id="emojiPicker" class="hidden fixed inset-0 sm:inset-auto sm:absolute sm:bottom-full sm:left-4 sm:mb-2 bg-black/50 sm:bg-transparent z-[9999] flex items-end sm:block">
-                            <div class="w-full sm:w-auto bg-white sm:border sm:border-slate-200 rounded-t-2xl sm:rounded-xl shadow-lg p-3">
+                        <div id="emojiPicker" class="hidden">
+                            <div class="fixed inset-0 bg-black/50 sm:hidden" onclick="document.getElementById('emojiPicker').classList.add('hidden')"></div>
+                            <div class="fixed bottom-0 left-0 right-0 sm:absolute sm:bottom-full sm:left-4 sm:mb-2 z-[9999] w-full sm:w-auto bg-white sm:border sm:border-slate-200 rounded-t-2xl sm:rounded-xl shadow-lg p-3">
                             <div class="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto">
                                 <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😀</button>
                                 <button type="button" class="emoji-btn text-xl p-1 hover:bg-slate-100 rounded">😂</button>
@@ -583,8 +699,9 @@ $languages = getAvailableLanguages();
                             </div>
                         </div>
                         <!-- Sticker Picker Dropdown -->
-                        <div id="stickerPicker" class="hidden fixed inset-0 sm:inset-auto sm:absolute sm:bottom-full sm:left-4 sm:mb-2 bg-black/50 sm:bg-transparent z-[9999] flex items-end sm:block">
-                            <div class="w-full sm:w-80 bg-white sm:border sm:border-slate-200 rounded-t-2xl sm:rounded-xl shadow-lg">
+                        <div id="stickerPicker" class="hidden">
+                            <div class="fixed inset-0 bg-black/50 sm:hidden" onclick="document.getElementById('stickerPicker').classList.add('hidden')"></div>
+                            <div class="fixed bottom-0 left-0 right-0 sm:absolute sm:bottom-full sm:left-4 sm:mb-2 z-[9999] w-full sm:w-80 bg-white sm:border sm:border-slate-200 rounded-t-2xl sm:rounded-xl shadow-lg">
                             <!-- Tabs -->
                             <div class="flex border-b border-slate-200">
                                 <button type="button" class="sticker-tab flex-1 px-3 py-2 text-xs font-medium text-secondary border-b-2 border-secondary" data-tab="my">Koleksi Saya</button>
@@ -682,6 +799,32 @@ $languages = getAvailableLanguages();
             <!-- Sidebar -->
             <div class="space-y-6">
 
+                <!-- Streak & Missions -->
+                <a href="missions.php" class="block bg-white rounded-2xl border border-slate-200 shadow-sm p-4 hover:shadow-md transition group">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-2xl">
+                                🔥
+                            </div>
+                            <div>
+                                <p class="text-sm text-slate-500">Login Streak</p>
+                                <p class="text-xl font-bold text-slate-900"><?= $user_streak ?> Hari</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <?php if ($pending_claims > 0): ?>
+                                <span class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full"><?= $pending_claims ?></span>
+                            <?php endif; ?>
+                            <svg class="w-5 h-5 text-slate-400 group-hover:text-slate-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <?php if ($pending_claims > 0): ?>
+                        <p class="text-xs text-emerald-600 mt-2 font-medium">Ada reward yang bisa diklaim!</p>
+                    <?php endif; ?>
+                </a>
+
                 <!-- Leaderboard & Poin -->
                 <a href="leaderboard.php" class="block bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl p-4 text-white hover:shadow-lg transition">
                     <div class="flex items-center justify-between">
@@ -691,10 +834,10 @@ $languages = getAvailableLanguages();
                         </div>
                         <div class="text-right">
                             <p class="text-white/80 text-sm">Poin</p>
-                            <p class="text-2xl font-bold"><?= $user_points ?></p>
+                            <p class="text-2xl font-bold" id="userPointsDisplay"><?= $user_points ?></p>
                         </div>
                     </div>
-                    <p class="text-white/60 text-xs mt-2"><?= $user_streak ?> hari streak 🔥 · Tap untuk detail →</p>
+                    <p class="text-white/60 text-xs mt-2"><span id="streakSmall"><?= $user_streak ?></span> hari streak 🔥 · Tap untuk detail →</p>
                 </a>
 
                 <!-- Badges -->
@@ -1078,7 +1221,7 @@ $languages = getAvailableLanguages();
 
     // Forum Chat Realtime
     const CURRENT_USER_ID = <?= $user_id ?>;
-    const BASE_URL = '<?= dirname($_SERVER['PHP_SELF']) ?>/../api';
+    const BASE_URL = '<?= rtrim(dirname(dirname($_SERVER["SCRIPT_NAME"])), "/") ?>/api';
     let lastMessageId = 0;
     let isPolling = true;
     let replyTo = null;
@@ -1091,6 +1234,44 @@ $languages = getAvailableLanguages();
     function formatTime(dateStr) {
         const date = new Date(dateStr);
         return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    // Mark messages as read
+    async function markMessagesAsRead(messageIds) {
+        if (!messageIds || messageIds.length === 0) return;
+        try {
+            await fetch(`${BASE_URL}/message_read.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_ids: messageIds })
+            });
+        } catch (err) {
+            console.error('Error marking messages as read:', err);
+        }
+    }
+    
+    // Read status icon (checkmarks like WhatsApp)
+    function getReadStatusIcon(msg) {
+        const readCount = msg.read_count || 0;
+        const onlineCount = msg.online_count || 1;
+        const allRead = msg.all_read || false;
+        
+        // SVG for single check (sent)
+        const singleCheck = `<svg class="w-4 h-4 inline-block" viewBox="0 0 16 16" fill="currentColor"><path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 2.354 7.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z"/></svg>`;
+        
+        // SVG for double check (read)
+        const doubleCheck = `<svg class="w-4 h-4 inline-block" viewBox="0 0 16 16" fill="currentColor"><path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 2.354 7.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l7-7z"/><path d="M15.354 4.354a.5.5 0 0 0-.708-.708L8 10.293l-.146-.147a.5.5 0 1 0-.708.708l.5.5a.5.5 0 0 0 .708 0l7-7z"/></svg>`;
+        
+        if (readCount === 0) {
+            // No one has read yet - single gray check
+            return `<span class="opacity-60" title="Terkirim">${singleCheck}</span>`;
+        } else if (allRead) {
+            // Everyone has read - double blue check
+            return `<span class="text-blue-400" title="Dibaca semua">${doubleCheck}</span>`;
+        } else {
+            // Some have read - double gray check
+            return `<span class="opacity-60" title="Dibaca ${readCount} orang">${doubleCheck}</span>`;
+        }
     }
 
     function formatDate(dateStr) {
@@ -1263,7 +1444,7 @@ $languages = getAvailableLanguages();
         
         // Tombol-tombol aksi
         const reactionButton = `
-            <button onclick="showReactionPicker(event, ${msg.id})" class="p-1 text-slate-400 hover:text-yellow-500" title="Tambah Reaksi">
+            <button onclick="showReactionPicker(event, ${msg.id})" class="p-1.5 text-slate-400 hover:text-yellow-500 hover:bg-yellow-50 rounded" title="Tambah Reaksi">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
@@ -1272,7 +1453,7 @@ $languages = getAvailableLanguages();
         
         const pinButton = `
             <button onclick="togglePin(${msg.id}, ${isPinned})" 
-                class="p-1 ${isPinned ? 'text-amber-500' : 'text-slate-400'} hover:text-amber-600" title="${isPinned ? 'Lepas Pin' : 'Pin Pesan'}">
+                class="p-1.5 ${isPinned ? 'text-amber-500 bg-amber-50' : 'text-slate-400'} hover:text-amber-600 hover:bg-amber-50 rounded" title="${isPinned ? 'Lepas Pin' : 'Pin Pesan'}">
                 <svg class="w-4 h-4" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 20 20">
                     <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L10 6.477V16h2a1 1 0 110 2H8a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z"/>
                 </svg>
@@ -1281,7 +1462,7 @@ $languages = getAvailableLanguages();
         
         const replyButton = `
             <button onclick="setReply(${msg.id}, '${msg.nama.replace(/'/g, "\\'")}', '${(msg.message || '').replace(/'/g, "\\'").replace(/\n/g, ' ')}')" 
-                class="p-1 text-slate-400 hover:text-slate-600" title="Balas">
+                class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded" title="Balas">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
                 </svg>
@@ -1289,18 +1470,18 @@ $languages = getAvailableLanguages();
         `;
 
         const actionButtons = (isMe && !isDeleted) ? `
-            <div class="absolute ${isMe ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white rounded-lg shadow-sm border border-slate-200 p-0.5 transition">
+            <div class="absolute ${isMe ? 'right-0' : 'left-0'} bottom-full mb-1 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white rounded-lg shadow-lg border border-slate-200 p-0.5 transition z-10">
                 ${reactionButton}
                 ${replyButton}
                 ${pinButton}
                 <button onclick="startEdit(${msg.id}, '${(msg.message || '').replace(/'/g, "\\'").replace(/\n/g, '\\n')}')" 
-                    class="p-1 text-slate-400 hover:text-blue-600" title="Edit">
+                    class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded" title="Edit">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                     </svg>
                 </button>
                 <button onclick="deleteMessage(${msg.id}, false)" 
-                    class="p-1 text-slate-400 hover:text-red-600" title="Hapus">
+                    class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Hapus">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                     </svg>
@@ -1308,13 +1489,13 @@ $languages = getAvailableLanguages();
             </div>
         ` : (isMe && isDeleted) ? `
             <button onclick="deleteMessage(${msg.id}, true)" 
-                class="absolute ${isMe ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-600 bg-white rounded shadow-sm border transition" title="Hapus Permanen">
+                class="absolute ${isMe ? 'right-0' : 'left-0'} bottom-full mb-1 opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-600 bg-white rounded-lg shadow-lg border transition z-10" title="Hapus Permanen">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                 </svg>
             </button>
         ` : (!isDeleted ? `
-            <div class="absolute ${isMe ? 'left-0 -translate-x-full pr-2' : 'right-0 translate-x-full pl-2'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white rounded-lg shadow-sm border border-slate-200 p-0.5 transition">
+            <div class="absolute ${isMe ? 'right-0' : 'left-0'} bottom-full mb-1 opacity-0 group-hover:opacity-100 flex gap-0.5 bg-white rounded-lg shadow-lg border border-slate-200 p-0.5 transition z-10">
                 ${reactionButton}
                 ${replyButton}
                 ${pinButton}
@@ -1337,7 +1518,7 @@ $languages = getAvailableLanguages();
                         ${!isMe ? `<p class="text-xs font-semibold ${isMe ? 'text-white/80' : 'text-secondary'} mb-1">${msg.nama}${pinIndicator}</p>` : ''}
                         ${replyHtml}
                         ${messageContent}
-                        <p class="text-xs ${isMe ? 'text-white/60' : 'text-slate-400'} mt-1 text-right">${isMe && isPinned ? '📌 ' : ''}${formatTime(msg.created_at)}${editedLabel}</p>
+                        <p class="text-xs ${isMe ? 'text-white/60' : 'text-slate-400'} mt-1 text-right flex items-center justify-end gap-1">${isMe && isPinned ? '📌 ' : ''}${formatTime(msg.created_at)}${editedLabel}${isMe ? getReadStatusIcon(msg) : ''}</p>
                     </div>
                     <!-- Reactions Display -->
                     <div class="reactions-display flex flex-wrap gap-1 mt-1 ${isMe ? 'justify-end' : ''}" id="reactions-${msg.id}"></div>
@@ -1545,6 +1726,14 @@ $languages = getAvailableLanguages();
                 
                 if (data.messages.length > 0) {
                     lastMessageId = Math.max(...data.messages.map(m => m.id));
+                    
+                    // Mark messages as read (only messages from other users)
+                    const unreadMsgIds = data.messages
+                        .filter(m => m.user_id != CURRENT_USER_ID && !m.is_deleted)
+                        .map(m => m.id);
+                    if (unreadMsgIds.length > 0) {
+                        markMessagesAsRead(unreadMsgIds);
+                    }
                 }
                 
                 container.scrollTop = container.scrollHeight;
@@ -2732,7 +2921,9 @@ $languages = getAvailableLanguages();
 
     async function loadNotifications() {
         try {
-            const res = await fetch(`${BASE_URL}/notifications.php?limit=10`);
+            const res = await fetch(`${BASE_URL}/notifications.php?limit=10`, {
+                credentials: 'include'
+            });
             const data = await res.json();
             if (data.success) {
                 renderNotifications(data.notifications);
@@ -2745,7 +2936,9 @@ $languages = getAvailableLanguages();
 
     async function loadNotifCount() {
         try {
-            const res = await fetch(`${BASE_URL}/notifications.php?count=1`);
+            const res = await fetch(`${BASE_URL}/notifications.php?count=1`, {
+                credentials: 'include'
+            });
             const data = await res.json();
             if (data.success) {
                 updateNotifBadge(data.count);
@@ -2773,23 +2966,34 @@ $languages = getAvailableLanguages();
         const icons = {
             'mention': '💬',
             'reply': '↩️',
-            'event': '📅',
+            'event': '🎯',
             'badge': '🏆',
             'announcement': '📢',
+            'iuran': '💰',
+            'payment': '✅',
             'system': '🔔'
         };
 
         notifList.innerHTML = notifications.map(n => `
-            <div class="notif-item p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 ${n.is_read ? 'opacity-60' : ''}" 
-                 onclick="handleNotifClick(${n.id}, '${n.link || ''}', ${!n.is_read})">
+            <div class="notif-item p-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 ${n.is_read ? 'opacity-60' : ''} group">
                 <div class="flex gap-3">
-                    <span class="text-xl">${icons[n.type] || '🔔'}</span>
-                    <div class="flex-1 min-w-0">
+                    <span class="text-xl cursor-pointer" onclick="handleNotifClick('${n.id}', '${n.link || ''}', ${!n.is_read})">${icons[n.type] || '🔔'}</span>
+                    <div class="flex-1 min-w-0 cursor-pointer" onclick="handleNotifClick('${n.id}', '${n.link || ''}', ${!n.is_read})">
                         <p class="text-sm font-medium text-slate-900 ${n.is_read ? '' : 'font-semibold'}">${escapeHtml(n.title)}</p>
                         ${n.message ? `<p class="text-xs text-slate-500 truncate">${escapeHtml(n.message)}</p>` : ''}
                         <p class="text-xs text-slate-400 mt-1">${timeAgo(n.created_at)}</p>
                     </div>
-                    ${!n.is_read ? '<span class="w-2 h-2 bg-secondary rounded-full flex-shrink-0 mt-2"></span>' : ''}
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        ${!n.is_read ? '<span class="w-2 h-2 bg-secondary rounded-full"></span>' : ''}
+                        ${n.id !== 'iuran' ? `
+                            <button onclick="event.stopPropagation(); deleteNotif('${n.id}')" 
+                                class="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition" title="Hapus">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        ` : ''}
+                    </div>
                 </div>
             </div>
         `).join('');
@@ -2814,12 +3018,13 @@ $languages = getAvailableLanguages();
     }
 
     async function handleNotifClick(id, link, markRead) {
-        if (markRead) {
+        if (markRead && id !== 'iuran') {
             try {
                 await fetch(`${BASE_URL}/notifications.php`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mark_read: true, id: id })
+                    credentials: 'include',
+                    body: JSON.stringify({ mark_read: true, id: parseInt(id) })
                 });
                 loadNotifCount();
             } catch (err) {}
@@ -2835,21 +3040,274 @@ $languages = getAvailableLanguages();
 
     async function markAllRead() {
         try {
-            await fetch(`${BASE_URL}/notifications.php`, {
+            const res = await fetch(`${BASE_URL}/notifications.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ mark_all_read: true })
             });
+            if (!res.ok) {
+                console.error('markAllRead HTTP error:', res.status, await res.text());
+                return;
+            }
             loadNotifications();
             updateNotifBadge(0);
         } catch (err) {
             console.error('Mark all read error:', err);
         }
     }
+    
+    async function deleteNotif(id) {
+        if (id === 'iuran') return; // Virtual notification
+        try {
+            const res = await fetch(`${BASE_URL}/notifications.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ delete: true, id: parseInt(id) })
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadNotifications();
+                loadNotifCount();
+            } else {
+                console.error('Delete failed:', data);
+            }
+        } catch (err) {
+            console.error('Delete notification error:', err);
+        }
+    }
+    
+    async function deleteAllNotifs() {
+        if (!confirm('Hapus semua notifikasi?')) return;
+        try {
+            const res = await fetch(`${BASE_URL}/notifications.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ delete_all: true })
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadNotifications();
+                updateNotifBadge(0);
+            }
+        } catch (err) {
+            console.error('Delete all notifications error:', err);
+        }
+    }
 
-    // Load notification count on page load and poll every 30 seconds
+    // Simple polling for real-time updates (lebih ringan dari SSE)
+    let lastNotifId = 0;
+    let lastEventId = 0;
+    let lastAnnId = 0;
+    let currentEventStatus = '<?= $event ? 'open' : 'closed' ?>';
+    
+    async function checkRealtimeUpdates() {
+        try {
+            const res = await fetch(`${BASE_URL}/realtime_check.php?last_notif=${lastNotifId}&last_event=${lastEventId}&last_ann=${lastAnnId}&event_status=${currentEventStatus}`, {
+                credentials: 'include'
+            });
+            const data = await res.json();
+            
+            if (data.new_notification) {
+                showNotificationToast(data.new_notification);
+                playNotifSound();
+                lastNotifId = data.new_notification.id;
+                if (notifOpen) loadNotifications();
+            }
+            
+            if (data.event_started) {
+                showEventStartedToast(data.event_started);
+                playNotifSound();
+                setTimeout(() => location.reload(), 2000);
+            }
+            
+            if (data.event_closed) {
+                showToast('info', 'Event Selesai', 'Event telah ditutup oleh admin');
+                setTimeout(() => location.reload(), 2000);
+            }
+            
+            if (data.new_announcement) {
+                showAnnouncementToast(data.new_announcement);
+                playNotifSound();
+                addAnnouncementToPage(data.new_announcement);
+                lastAnnId = data.new_announcement.id;
+            }
+            
+            if (data.unread_count !== undefined) {
+                updateNotifBadge(data.unread_count);
+            }
+            
+            // Update trackers
+            if (data.last_notif_id) lastNotifId = data.last_notif_id;
+            if (data.last_event_id) lastEventId = data.last_event_id;
+            if (data.event_status) currentEventStatus = data.event_status;
+        } catch (err) {
+            // Silent fail
+        }
+    }
+    
+    function showNotificationToast(notif) {
+        // Remove existing toast
+        const existingToast = document.getElementById('notifToast');
+        if (existingToast) existingToast.remove();
+        
+        const icons = {
+            'announcement': '📢',
+            'event': '🎯',
+            'iuran': '💰',
+            'mention': '💬',
+            'reply': '↩️',
+            'badge': '🏆',
+            'payment': '✅',
+            'system': '🔔'
+        };
+        
+        const toast = document.createElement('div');
+        toast.id = 'notifToast';
+        toast.className = 'fixed top-4 right-4 z-[9999] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 max-w-sm animate-slide-in cursor-pointer';
+        toast.innerHTML = `
+            <div class="flex gap-3 items-start">
+                <span class="text-2xl">${icons[notif.type] || '🔔'}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-slate-900 dark:text-white text-sm">${escapeHtml(notif.title)}</p>
+                    ${notif.message ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">${escapeHtml(notif.message)}</p>` : ''}
+                </div>
+                <button onclick="event.stopPropagation(); this.parentElement.parentElement.remove();" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+        
+        toast.onclick = () => {
+            toast.remove();
+            if (notif.link) {
+                window.location.href = notif.link;
+            } else {
+                toggleNotifications();
+            }
+        };
+        
+        document.body.appendChild(toast);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.classList.add('animate-slide-out');
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 5000);
+    }
+    
+    // Toast helper for different types
+    function showToast(type, title, message) {
+        const icons = { 'info': 'ℹ️', 'success': '✅', 'warning': '⚠️', 'error': '❌' };
+        showNotificationToast({ type: 'system', title: `${icons[type] || '🔔'} ${title}`, message });
+    }
+    
+    // Show event started toast
+    function showEventStartedToast(event) {
+        const existingToast = document.getElementById('notifToast');
+        if (existingToast) existingToast.remove();
+        
+        const toast = document.createElement('div');
+        toast.id = 'notifToast';
+        toast.className = 'fixed top-4 right-4 z-[9999] bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl shadow-2xl p-4 max-w-sm animate-slide-in cursor-pointer';
+        toast.innerHTML = `
+            <div class="flex gap-3 items-start">
+                <span class="text-3xl">🎯</span>
+                <div class="flex-1">
+                    <p class="font-bold text-lg">Event Dimulai!</p>
+                    <p class="text-sm opacity-90">${escapeHtml(event.nama_event)}</p>
+                    <p class="text-xs opacity-75 mt-1">Klik untuk scan QR sekarang</p>
+                </div>
+            </div>
+        `;
+        toast.onclick = () => { toast.remove(); location.reload(); };
+        document.body.appendChild(toast);
+        setTimeout(() => { if (toast.parentElement) toast.remove(); }, 5000);
+    }
+    
+    // Show announcement toast
+    function showAnnouncementToast(ann) {
+        const typeColors = {
+            'info': 'from-blue-500 to-blue-600',
+            'warning': 'from-yellow-500 to-orange-500',
+            'danger': 'from-red-500 to-red-600',
+            'success': 'from-green-500 to-green-600'
+        };
+        const icons = { 'info': '📢', 'warning': '⚠️', 'danger': '🚨', 'success': '✅' };
+        
+        const existingToast = document.getElementById('notifToast');
+        if (existingToast) existingToast.remove();
+        
+        const toast = document.createElement('div');
+        toast.id = 'notifToast';
+        toast.className = `fixed top-4 right-4 z-[9999] bg-gradient-to-r ${typeColors[ann.type] || typeColors.info} text-white rounded-xl shadow-2xl p-4 max-w-sm animate-slide-in cursor-pointer`;
+        toast.innerHTML = `
+            <div class="flex gap-3 items-start">
+                <span class="text-2xl">${icons[ann.type] || '📢'}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="font-bold">Pengumuman Baru</p>
+                    <p class="text-sm font-medium">${escapeHtml(ann.title)}</p>
+                    <p class="text-xs opacity-90 mt-1 line-clamp-2">${escapeHtml(ann.content.substring(0, 100))}${ann.content.length > 100 ? '...' : ''}</p>
+                </div>
+                <button onclick="event.stopPropagation(); this.parentElement.parentElement.remove();" class="text-white/70 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        `;
+        toast.onclick = () => toast.remove();
+        document.body.appendChild(toast);
+        setTimeout(() => { if (toast.parentElement) { toast.classList.add('animate-slide-out'); setTimeout(() => toast.remove(), 300); } }, 6000);
+    }
+    
+    // Add announcement to page dynamically
+    function addAnnouncementToPage(ann) {
+        const container = document.querySelector('.announcements-container');
+        if (!container) {
+            // Create announcements section if not exists
+            const forumSection = document.getElementById('forumSection');
+            if (forumSection) {
+                const annSection = document.createElement('div');
+                annSection.className = 'announcements-container bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden mb-6';
+                annSection.innerHTML = `
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+                        <h3 class="font-bold text-slate-900 dark:text-white">Pengumuman</h3>
+                    </div>
+                    <div class="divide-y divide-slate-100 dark:divide-slate-700 announcements-list"></div>
+                `;
+                forumSection.parentElement.insertBefore(annSection, forumSection);
+            }
+        }
+        
+        const list = document.querySelector('.announcements-list') || document.querySelector('.announcements-container .divide-y');
+        if (list) {
+            const typeColors = { 'danger': 'bg-red-500', 'warning': 'bg-yellow-500', 'success': 'bg-green-500', 'info': 'bg-blue-500' };
+            const annEl = document.createElement('div');
+            annEl.className = 'px-6 py-4 bg-yellow-50 dark:bg-yellow-900/20 animate-pulse-once';
+            annEl.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="w-2 h-2 rounded-full mt-2 flex-shrink-0 ${typeColors[ann.type] || 'bg-blue-500'}"></div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-slate-900 dark:text-white">${escapeHtml(ann.title)}</p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">${escapeHtml(ann.content).replace(/\n/g, '<br>')}</p>
+                        <p class="text-xs text-slate-400 mt-2">Baru saja</p>
+                    </div>
+                </div>
+            `;
+            list.insertBefore(annEl, list.firstChild);
+            // Remove highlight after 3 seconds
+            setTimeout(() => annEl.classList.remove('bg-yellow-50', 'dark:bg-yellow-900/20', 'animate-pulse-once'), 3000);
+        }
+    }
+    
+    // Initialize polling (setiap 5 detik)
     loadNotifCount();
-    setInterval(loadNotifCount, 30000);
+    setInterval(checkRealtimeUpdates, 5000);
 
     // ==================== TYPING INDICATOR ====================
     const typingIndicator = document.getElementById('typingIndicator');

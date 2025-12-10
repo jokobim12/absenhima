@@ -64,6 +64,34 @@ if (mysqli_num_rows($checkVoice) == 0) {
 
 // Cek apakah user adalah admin
 $is_admin = isset($_SESSION['admin_id']);
+$current_user_id = $_SESSION['user_id'] ?? $_SESSION['admin_id'] ?? 0;
+
+// Pastikan tabel message_reads ada
+$checkReads = mysqli_query($conn, "SHOW TABLES LIKE 'message_reads'");
+if (!$checkReads || mysqli_num_rows($checkReads) == 0) {
+    mysqli_query($conn, "CREATE TABLE IF NOT EXISTS message_reads (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        message_id INT NOT NULL,
+        user_id INT NOT NULL,
+        read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_read (message_id, user_id),
+        INDEX idx_message_id (message_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+// Hitung online users (aktif dalam 5 menit)
+$online_count = 1;
+$onlineCheck = mysqli_query($conn, "SHOW TABLES LIKE 'user_online_status'");
+if ($onlineCheck && mysqli_num_rows($onlineCheck) > 0) {
+    $onlineResult = mysqli_query($conn, "
+        SELECT COUNT(DISTINCT user_id) as total 
+        FROM user_online_status 
+        WHERE last_seen > DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+    ");
+    if ($onlineResult && $row = mysqli_fetch_assoc($onlineResult)) {
+        $online_count = max(1, (int)$row['total']);
+    }
+}
 
 // Ambil pesan
 if ($last_id > 0) {
@@ -119,12 +147,31 @@ if (!empty($reply_ids)) {
     }
 }
 
+// Get read counts for all messages
+$read_counts = [];
+if (!empty($messages)) {
+    $msg_ids = array_column($messages, 'id');
+    $msg_ids_str = implode(',', $msg_ids);
+    $readResult = mysqli_query($conn, "
+        SELECT message_id, COUNT(DISTINCT user_id) as read_count
+        FROM message_reads 
+        WHERE message_id IN ($msg_ids_str)
+        GROUP BY message_id
+    ");
+    if ($readResult) {
+        while ($r = mysqli_fetch_assoc($readResult)) {
+            $read_counts[$r['message_id']] = (int)$r['read_count'];
+        }
+    }
+}
+
 // Format messages
 $formatted = [];
 $pinned = [];
 $regular = [];
 
 foreach ($messages as $row) {
+    $msg_read_count = $read_counts[$row['id']] ?? 0;
     $msg = [
         'id' => $row['id'],
         'user_id' => $row['user_id'],
@@ -142,7 +189,10 @@ foreach ($messages as $row) {
         'is_edited' => (bool)($row['is_edited'] ?? 0),
         'is_pinned' => (bool)($row['is_pinned'] ?? 0),
         'pinned_at' => $row['pinned_at'] ?? null,
-        'created_at' => $row['created_at']
+        'created_at' => $row['created_at'],
+        'read_count' => $msg_read_count,
+        'online_count' => $online_count,
+        'all_read' => ($msg_read_count >= $online_count)
     ];
     
     if ($msg['is_pinned']) {
