@@ -44,7 +44,7 @@ $stmt = mysqli_prepare($conn, "
     JOIN events e ON a.event_id = e.id 
     WHERE a.user_id = ? 
     ORDER BY a.id DESC 
-    LIMIT 10
+    LIMIT 1
 ");
 mysqli_stmt_bind_param($stmt, "i", $user_id);
 mysqli_stmt_execute($stmt);
@@ -227,6 +227,14 @@ $languages = getAvailableLanguages();
         /* Dark mode for green elements */
         .dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.15) !important; }
         .dark .text-green-600, .dark .text-green-700 { color: #4ade80 !important; }
+        /* Dark mode for riwayat kehadiran */
+        .dark .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.25) !important; }
+        .dark .text-emerald-600 { color: #34d399 !important; }
+        .dark .from-emerald-50 { --tw-gradient-from: rgba(16, 185, 129, 0.12) !important; }
+        .dark .to-teal-50 { --tw-gradient-to: rgba(20, 184, 166, 0.12) !important; }
+        .dark .bg-gradient-to-r.from-emerald-50.to-teal-50 { background: linear-gradient(to right, rgba(16, 185, 129, 0.12), rgba(20, 184, 166, 0.12)) !important; border: 1px solid rgba(16, 185, 129, 0.2) !important; }
+        .dark .bg-gradient-to-r.from-emerald-50.to-teal-50 .text-slate-900 { color: #f0f0f0 !important; }
+        .dark .bg-gradient-to-r.from-emerald-50.to-teal-50 .text-slate-500 { color: #a0a0a0 !important; }
         /* Dark mode for typing indicator */
         .dark .bg-slate-50\/80 { background-color: rgba(17, 17, 17, 0.9) !important; }
         /* Scrollbar styling - konsisten untuk light & dark */
@@ -765,32 +773,56 @@ $languages = getAvailableLanguages();
 
                 <!-- Riwayat Kehadiran -->
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="px-6 lg:px-8 py-5 border-b border-slate-100 flex items-center justify-between">
-                        <h3 class="font-bold text-slate-900 text-lg"><?= __('attendance_history') ?></h3>
-                        <span class="text-slate-400 text-sm"><?= $total_hadir ?> <?= __('total') ?></span>
+                    <div class="px-6 py-4 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-slate-900"><?= __('attendance_history') ?></h3>
+                                <p class="text-sm text-slate-500"><?= $total_hadir ?> kehadiran tercatat</p>
+                            </div>
+                        </div>
+                        <?php if($total_hadir > 0): ?>
+                        <a href="riwayat.php" class="text-sm text-secondary hover:text-secondary/80 font-medium flex items-center gap-1">
+                            Lihat Semua
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </a>
+                        <?php endif; ?>
                     </div>
-                    <?php if($riwayat && mysqli_num_rows($riwayat) > 0): ?>
-                    <div class="divide-y divide-slate-100">
-                        <?php while($r = mysqli_fetch_assoc($riwayat)): ?>
-                        <div class="px-6 lg:px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition">
-                            <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <?php if($riwayat && mysqli_num_rows($riwayat) > 0): 
+                        $r = mysqli_fetch_assoc($riwayat);
+                    ?>
+                    <div class="px-6 pb-4">
+                        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-4 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
                                 </div>
                                 <div>
-                                    <p class="font-medium text-slate-900"><?= htmlspecialchars($r['nama_event']) ?></p>
-                                    <p class="text-slate-400 text-sm"><?= date('d M Y, H:i', strtotime($r['waktu_absen'])) ?></p>
+                                    <p class="font-semibold text-slate-900"><?= htmlspecialchars($r['nama_event']) ?></p>
+                                    <p class="text-sm text-slate-500"><?= date('d M Y, H:i', strtotime($r['waktu_absen'])) ?> WITA</p>
                                 </div>
                             </div>
-                            <span class="px-3 py-1 bg-accent/10 text-accent rounded-full text-xs font-medium"><?= __('present') ?></span>
+                            <span class="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold">HADIR</span>
                         </div>
-                        <?php endwhile; ?>
                     </div>
                     <?php else: ?>
-                    <div class="px-6 lg:px-8 py-12 text-center">
-                        <p class="text-slate-400"><?= __('no_history') ?></p>
+                    <div class="px-6 pb-6">
+                        <div class="bg-slate-50 rounded-xl p-6 text-center">
+                            <div class="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-slate-500">Belum ada riwayat kehadiran</p>
+                        </div>
                     </div>
                     <?php endif; ?>
                 </div>
@@ -1675,7 +1707,12 @@ $languages = getAvailableLanguages();
         banner.innerHTML = html;
     }
     
+    let loadingMessages = false;
     async function loadMessages() {
+        // Prevent concurrent calls
+        if (loadingMessages) return;
+        loadingMessages = true;
+        
         try {
             const res = await fetch(`${BASE_URL}/forum_messages.php?last_id=${lastMessageId}`);
             const data = await res.json();
@@ -1717,6 +1754,9 @@ $languages = getAvailableLanguages();
                     }
                     
                     data.messages.forEach(msg => {
+                        // Skip jika pesan sudah ada di DOM
+                        if (document.getElementById('msg-' + msg.id)) return;
+                        
                         const msgDate = new Date(msg.created_at).toDateString();
                         const showDate = msgDate !== lastDate;
                         if (showDate) lastDate = msgDate;
@@ -1744,6 +1784,8 @@ $languages = getAvailableLanguages();
             }
         } catch (err) {
             console.error('Error loading messages:', err);
+        } finally {
+            loadingMessages = false;
         }
     }
 

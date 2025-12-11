@@ -146,29 +146,6 @@ function getUserBadges($conn, $user_id) {
     return $badges;
 }
 
-// Get leaderboard
-function getLeaderboard($conn, $limit = 10) {
-    $result = mysqli_query($conn, "
-        SELECT u.id, u.nama, u.nim, u.kelas, u.picture, u.current_streak, u.longest_streak,
-               COUNT(a.id) as total_attendance,
-               (SELECT COUNT(*) FROM user_badges WHERE user_id = u.id) as badge_count
-        FROM users u
-        LEFT JOIN absen a ON u.id = a.user_id
-        GROUP BY u.id
-        ORDER BY total_attendance DESC, badge_count DESC, longest_streak DESC
-        LIMIT $limit
-    ");
-    
-    $leaderboard = [];
-    $rank = 1;
-    while ($row = mysqli_fetch_assoc($result)) {
-        $row['rank'] = $rank++;
-        $leaderboard[] = $row;
-    }
-    
-    return $leaderboard;
-}
-
 // Get user rank based on total_points
 function getUserRank($conn, $user_id) {
     // Get user's total points
@@ -186,56 +163,5 @@ function getUserRank($conn, $user_id) {
     mysqli_stmt_close($stmt);
     
     return $higher + 1;
-}
-
-// Check and update daily login
-function checkDailyLogin($conn, $user_id) {
-    $stmt = mysqli_prepare($conn, "SELECT last_active_date, daily_streak, longest_streak FROM users WHERE id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $user_id);
-    mysqli_stmt_execute($stmt);
-    $user = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
-    mysqli_stmt_close($stmt);
-    
-    $today = date('Y-m-d');
-    $lastActive = $user['last_active_date'];
-    $streak = intval($user['daily_streak']);
-    $longestStreak = intval($user['longest_streak']);
-    
-    if ($lastActive == $today) {
-        return ['already' => true, 'streak' => $streak];
-    }
-    
-    $yesterday = date('Y-m-d', strtotime('-1 day'));
-    
-    if ($lastActive == $yesterday) {
-        $streak++;
-    } else {
-        $streak = 1;
-    }
-    
-    if ($streak > $longestStreak) {
-        $longestStreak = $streak;
-    }
-    
-    // Update user
-    $stmt = mysqli_prepare($conn, "UPDATE users SET last_active_date = ?, daily_streak = ?, longest_streak = ? WHERE id = ?");
-    mysqli_stmt_bind_param($stmt, "siii", $today, $streak, $longestStreak, $user_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-    
-    // Add daily login point
-    $conn->query("INSERT INTO point_history (user_id, points, activity_type, description) VALUES ($user_id, 1, 'daily_login', 'Login harian')");
-    $conn->query("UPDATE users SET total_points = total_points + 1 WHERE id = $user_id");
-    
-    // Bonus for streak milestones
-    if ($streak == 7) {
-        $conn->query("INSERT INTO point_history (user_id, points, activity_type, description) VALUES ($user_id, 5, 'streak_bonus', 'Bonus streak 7 hari')");
-        $conn->query("UPDATE users SET total_points = total_points + 5 WHERE id = $user_id");
-    } elseif ($streak == 30) {
-        $conn->query("INSERT INTO point_history (user_id, points, activity_type, description) VALUES ($user_id, 20, 'streak_bonus', 'Bonus streak 30 hari')");
-        $conn->query("UPDATE users SET total_points = total_points + 20 WHERE id = $user_id");
-    }
-    
-    return ['already' => false, 'streak' => $streak, 'points' => 1];
 }
 ?>

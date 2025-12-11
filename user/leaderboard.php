@@ -99,9 +99,13 @@ $activity_labels = [
     <!-- My Stats Card -->
     <div class="max-w-4xl mx-auto px-4 -mt-4">
         <div class="bg-white rounded-2xl shadow-lg p-4 border border-slate-200">
+            <?php 
+            $myPic = $user['picture'] ?? '';
+            $myPicUrl = (strpos($myPic, 'http') === 0) ? $myPic : '../' . $myPic;
+            ?>
             <div class="flex items-center gap-4">
-                <?php if (!empty($user['picture'])): ?>
-                    <img src="../<?= htmlspecialchars($user['picture']) ?>" class="w-14 h-14 rounded-full object-cover border-2 border-yellow-400">
+                <?php if (!empty($myPic)): ?>
+                    <img src="<?= htmlspecialchars($myPicUrl) ?>" class="w-14 h-14 rounded-full object-cover border-2 border-yellow-400">
                 <?php else: ?>
                     <div class="w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center">
                         <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,10 +135,13 @@ $activity_labels = [
         <div class="flex items-end justify-center gap-2 px-4">
             <!-- 2nd Place -->
             <div class="flex flex-col items-center w-1/3">
-                <?php if (isset($top3[1])): ?>
+                <?php if (isset($top3[1])): 
+                    $pic2 = $top3[1]['picture'] ?? '';
+                    $pic2Url = (strpos($pic2, 'http') === 0) ? $pic2 : '../' . $pic2;
+                ?>
                 <p class="text-xs font-bold text-yellow-600 dark:text-yellow-400 mb-1 text-center truncate w-full px-1"><?= strtoupper(htmlspecialchars($top3[1]['nama'])) ?></p>
-                <?php if (!empty($top3[1]['picture'])): ?>
-                    <img src="../<?= htmlspecialchars($top3[1]['picture']) ?>" class="w-16 h-16 rounded-full object-cover border-4 border-gray-300 shadow-lg mb-2">
+                <?php if (!empty($pic2)): ?>
+                    <img src="<?= htmlspecialchars($pic2Url) ?>" class="w-16 h-16 rounded-full object-cover border-4 border-gray-300 shadow-lg mb-2">
                 <?php else: ?>
                     <div class="w-16 h-16 rounded-full bg-gray-300 flex items-center justify-center border-4 border-gray-400 shadow-lg mb-2">
                         <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -156,10 +163,13 @@ $activity_labels = [
             
             <!-- 1st Place -->
             <div class="flex flex-col items-center w-1/3">
-                <?php if (isset($top3[0])): ?>
+                <?php if (isset($top3[0])): 
+                    $pic1 = $top3[0]['picture'] ?? '';
+                    $pic1Url = (strpos($pic1, 'http') === 0) ? $pic1 : '../' . $pic1;
+                ?>
                 <p class="text-xs font-bold text-yellow-600 dark:text-yellow-400 mb-1 text-center truncate w-full px-1"><?= strtoupper(htmlspecialchars($top3[0]['nama'])) ?></p>
-                <?php if (!empty($top3[0]['picture'])): ?>
-                    <img src="../<?= htmlspecialchars($top3[0]['picture']) ?>" class="w-20 h-20 rounded-full object-cover border-4 border-yellow-400 shadow-lg mb-2">
+                <?php if (!empty($pic1)): ?>
+                    <img src="<?= htmlspecialchars($pic1Url) ?>" class="w-20 h-20 rounded-full object-cover border-4 border-yellow-400 shadow-lg mb-2">
                 <?php else: ?>
                     <div class="w-20 h-20 rounded-full bg-yellow-100 flex items-center justify-center border-4 border-yellow-400 shadow-lg mb-2">
                         <svg class="w-10 h-10 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,10 +186,13 @@ $activity_labels = [
             
             <!-- 3rd Place -->
             <div class="flex flex-col items-center w-1/3">
-                <?php if (isset($top3[2])): ?>
+                <?php if (isset($top3[2])): 
+                    $pic3 = $top3[2]['picture'] ?? '';
+                    $pic3Url = (strpos($pic3, 'http') === 0) ? $pic3 : '../' . $pic3;
+                ?>
                 <p class="text-xs font-bold text-yellow-600 dark:text-yellow-400 mb-1 text-center truncate w-full px-1"><?= strtoupper(htmlspecialchars($top3[2]['nama'])) ?></p>
-                <?php if (!empty($top3[2]['picture'])): ?>
-                    <img src="../<?= htmlspecialchars($top3[2]['picture']) ?>" class="w-14 h-14 rounded-full object-cover border-4 border-orange-300 shadow-lg mb-2">
+                <?php if (!empty($pic3)): ?>
+                    <img src="<?= htmlspecialchars($pic3Url) ?>" class="w-14 h-14 rounded-full object-cover border-4 border-orange-300 shadow-lg mb-2">
                 <?php else: ?>
                     <div class="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center border-4 border-orange-300 shadow-lg mb-2">
                         <svg class="w-7 h-7 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -218,8 +231,12 @@ $activity_labels = [
                     </div>
                     
                     <!-- Avatar -->
-                    <?php if (!empty($u['picture'])): ?>
-                        <img src="../<?= htmlspecialchars($u['picture']) ?>" class="w-10 h-10 rounded-full object-cover">
+                    <?php 
+                    $pic = $u['picture'] ?? '';
+                    $picUrl = (strpos($pic, 'http') === 0) ? $pic : '../' . $pic;
+                    ?>
+                    <?php if (!empty($pic)): ?>
+                        <img src="<?= htmlspecialchars($picUrl) ?>" class="w-10 h-10 rounded-full object-cover">
                     <?php else: ?>
                         <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
                             <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
