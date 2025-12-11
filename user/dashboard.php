@@ -872,6 +872,25 @@ $languages = getAvailableLanguages();
                     <p class="text-white/60 text-xs mt-2"><span id="streakSmall"><?= $user_streak ?></span> hari streak 🔥 · Tap untuk detail →</p>
                 </a>
 
+                <!-- Mini Games -->
+                <?php 
+                $can_spin = !mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM point_history WHERE user_id = $user_id AND activity_type = 'spin_wheel' AND DATE(created_at) = '$today'"));
+                ?>
+                <a href="games.php" class="block bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-4 text-white hover:shadow-lg transition">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="text-3xl">🎰</span>
+                            <div>
+                                <p class="font-bold">Mini Games</p>
+                                <p class="text-white/80 text-sm">Spin & dapatkan poin!</p>
+                            </div>
+                        </div>
+                        <?php if($can_spin): ?>
+                        <span class="bg-white/20 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">FREE SPIN!</span>
+                        <?php endif; ?>
+                    </div>
+                </a>
+
                 <!-- Badges -->
                 <?php if (!empty($user_badges)): ?>
                 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
