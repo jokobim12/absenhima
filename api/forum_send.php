@@ -140,16 +140,34 @@ if (mysqli_stmt_execute($stmt)) {
         }
     }
     
-    // Add points for chat (1x per day only)
-    $checkPoints = $conn->prepare("SELECT id FROM point_history WHERE user_id = ? AND activity_type = 'chat' AND DATE(created_at) = CURDATE() LIMIT 1");
-    if ($checkPoints) {
-        $checkPoints->bind_param("i", $user_id);
-        $checkPoints->execute();
-        $alreadyGot = $checkPoints->get_result()->num_rows > 0;
-        if (!$alreadyGot) {
+    // Add points for chat missions
+    // Misi 1: Kirim 1 pesan (1 poin)
+    $checkChat1 = $conn->prepare("SELECT id FROM point_history WHERE user_id = ? AND activity_type = 'chat' AND DATE(created_at) = CURDATE() LIMIT 1");
+    if ($checkChat1) {
+        $checkChat1->bind_param("i", $user_id);
+        $checkChat1->execute();
+        if ($checkChat1->get_result()->num_rows == 0) {
             $conn->query("INSERT INTO point_history (user_id, points, activity_type, description, reference_id) VALUES ($user_id, 1, 'chat', 'Kirim pesan di forum', $message_id)");
             $conn->query("UPDATE users SET total_points = total_points + 1 WHERE id = $user_id");
         }
+        $checkChat1->close();
+    }
+    
+    // Misi 2: Kirim 5 pesan (3 poin bonus)
+    $checkChat5 = $conn->prepare("SELECT id FROM point_history WHERE user_id = ? AND activity_type = 'chat_5' AND DATE(created_at) = CURDATE() LIMIT 1");
+    if ($checkChat5) {
+        $checkChat5->bind_param("i", $user_id);
+        $checkChat5->execute();
+        if ($checkChat5->get_result()->num_rows == 0) {
+            // Hitung total pesan hari ini (termasuk yang baru dikirim)
+            $countMsg = $conn->query("SELECT COUNT(*) as c FROM forum_messages WHERE user_id = $user_id AND DATE(created_at) = CURDATE()");
+            $msgCount = $countMsg->fetch_assoc()['c'];
+            if ($msgCount >= 5) {
+                $conn->query("INSERT INTO point_history (user_id, points, activity_type, description, reference_id) VALUES ($user_id, 3, 'chat_5', 'Aktif berdiskusi (5 pesan)', $message_id)");
+                $conn->query("UPDATE users SET total_points = total_points + 3 WHERE id = $user_id");
+            }
+        }
+        $checkChat5->close();
     }
     
     echo json_encode([

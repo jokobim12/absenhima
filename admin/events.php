@@ -282,8 +282,8 @@ while($row = mysqli_fetch_assoc($events)) {
         document.getElementById('deleteEventName').textContent = name;
         document.getElementById('deleteId').value = id;
         document.getElementById('deleteWarning').textContent = pesertaCount > 0 
-            ? '⚠️ ' + pesertaCount + ' data peserta akan ikut terhapus!' 
-            : '';
+            // ? '⚠️ ' + pesertaCount + ' data peserta akan ikut terhapus!' 
+            // : '';
         
         const modal = document.getElementById('deleteModal');
         const content = document.getElementById('deleteModalContent');

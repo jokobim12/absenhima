@@ -22,6 +22,21 @@ if (isset($_POST['generate_vapid'])) {
     }
 }
 
+// Handle test push notification
+if (isset($_POST['test_push'])) {
+    $result = sendNotificationToAllUsers(
+        $conn,
+        '🔔 Test Notifikasi',
+        'Ini adalah test push notification dari admin. Jika kamu melihat ini, notifikasi berhasil!',
+        '/user/dashboard.php'
+    );
+    if ($result['sent'] > 0) {
+        $success = "Test notifikasi berhasil dikirim ke {$result['sent']} perangkat!";
+    } else {
+        $error = "Gagal mengirim notifikasi. Errors: " . implode(', ', array_slice($result['errors'] ?? [], 0, 3));
+    }
+}
+
 // Handle delete image
 if (isset($_GET['delete_image']) && !empty($_GET['delete_image'])) {
     $key = mysqli_real_escape_string($conn, $_GET['delete_image']);
@@ -565,6 +580,16 @@ $active_tab = $_GET['tab'] ?? 'branding';
                             <?php else: ?>
                             <p class="text-sm text-gray-500">Belum ada subscriber</p>
                             <?php endif; ?>
+                        </div>
+
+                        <!-- Test Push Notification -->
+                        <div class="p-4 bg-green-50 rounded-xl border border-green-100">
+                            <h3 class="text-sm font-medium text-green-900 mb-2">Test Push Notification</h3>
+                            <p class="text-sm text-green-700 mb-3">Kirim test notifikasi ke semua subscriber untuk memastikan sistem berfungsi.</p>
+                            <button type="submit" name="test_push" value="1" 
+                                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition">
+                                🔔 Kirim Test Notifikasi
+                            </button>
                         </div>
 
                         <!-- Info -->

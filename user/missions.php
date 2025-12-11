@@ -8,9 +8,12 @@ $user_id = intval($_SESSION['user_id']);
 $user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE id = $user_id"));
 $today = date('Y-m-d');
 
-// Get activities
+// Get activities - cek dari point_history agar tidak terpengaruh pesan yang dihapus
 $daily_claimed = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM point_history WHERE user_id = $user_id AND activity_type = 'daily_login' AND DATE(created_at) = '$today'"));
-$chat_today = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM forum_messages WHERE user_id = $user_id AND DATE(created_at) = '$today' AND is_deleted = 0"))['c'];
+$chat_1_claimed = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM point_history WHERE user_id = $user_id AND activity_type = 'chat' AND DATE(created_at) = '$today'"));
+$chat_5_claimed = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM point_history WHERE user_id = $user_id AND activity_type = 'chat_5' AND DATE(created_at) = '$today'"));
+// Untuk progress bar, hitung pesan aktif
+$chat_today = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as c FROM forum_messages WHERE user_id = $user_id AND DATE(created_at) = '$today'"))['c'];
 
 // Cek attendance untuk event biasa dan event besar
 $attendance_normal = mysqli_fetch_assoc(mysqli_query($conn, "
@@ -178,48 +181,48 @@ $total_claimable = ($can_claim_daily ? 1 : 0) + count($milestones);
                 </div>
 
                 <!-- Kirim Pesan -->
-                <div class="p-4 flex items-center gap-4 <?= $chat_today >= 1 ? 'bg-slate-50' : '' ?>">
-                    <div class="w-10 h-10 rounded-lg <?= $chat_today >= 1 ? 'bg-emerald-100' : 'bg-slate-100' ?> flex items-center justify-center flex-shrink-0">
-                        <?php if ($chat_today >= 1): ?>
+                <div class="p-4 flex items-center gap-4 <?= $chat_1_claimed ? 'bg-slate-50' : '' ?>">
+                    <div class="w-10 h-10 rounded-lg <?= $chat_1_claimed ? 'bg-emerald-100' : 'bg-slate-100' ?> flex items-center justify-center flex-shrink-0">
+                        <?php if ($chat_1_claimed): ?>
                             <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                         <?php else: ?>
                             <span class="text-lg">💬</span>
                         <?php endif; ?>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="font-medium text-slate-900 <?= $chat_today >= 1 ? 'line-through opacity-60' : '' ?>">Kirim Pesan</p>
+                        <p class="font-medium text-slate-900 <?= $chat_1_claimed ? 'line-through opacity-60' : '' ?>">Kirim Pesan</p>
                         <p class="text-sm text-slate-500">Chat di forum diskusi</p>
                     </div>
-                    <span class="text-sm <?= $chat_today >= 1 ? 'text-emerald-500 font-semibold' : 'text-slate-400' ?> flex-shrink-0">
-                        <?= $chat_today >= 1 ? 'Selesai' : '+1 poin' ?>
+                    <span class="text-sm <?= $chat_1_claimed ? 'text-emerald-500 font-semibold' : 'text-slate-400' ?> flex-shrink-0">
+                        <?= $chat_1_claimed ? 'Selesai' : '+1 poin' ?>
                     </span>
                 </div>
 
                 <!-- Aktif Diskusi -->
-                <div class="p-4 <?= $chat_today >= 5 ? 'bg-slate-50' : '' ?>">
+                <div class="p-4 <?= $chat_5_claimed ? 'bg-slate-50' : '' ?>">
                     <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-lg <?= $chat_today >= 5 ? 'bg-emerald-100' : 'bg-slate-100' ?> flex items-center justify-center flex-shrink-0">
-                            <?php if ($chat_today >= 5): ?>
+                        <div class="w-10 h-10 rounded-lg <?= $chat_5_claimed ? 'bg-emerald-100' : 'bg-slate-100' ?> flex items-center justify-center flex-shrink-0">
+                            <?php if ($chat_5_claimed): ?>
                                 <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                             <?php else: ?>
                                 <span class="text-lg">🗣️</span>
                             <?php endif; ?>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="font-medium text-slate-900 <?= $chat_today >= 5 ? 'line-through opacity-60' : '' ?>">Aktif Berdiskusi</p>
+                            <p class="font-medium text-slate-900 <?= $chat_5_claimed ? 'line-through opacity-60' : '' ?>">Aktif Berdiskusi</p>
                             <p class="text-sm text-slate-500">Kirim 5 pesan hari ini</p>
                         </div>
-                        <span class="text-sm <?= $chat_today >= 5 ? 'text-emerald-500 font-semibold' : 'text-slate-400' ?> flex-shrink-0">
-                            <?= $chat_today >= 5 ? 'Selesai' : '+3 poin' ?>
+                        <span class="text-sm <?= $chat_5_claimed ? 'text-emerald-500 font-semibold' : 'text-slate-400' ?> flex-shrink-0">
+                            <?= $chat_5_claimed ? 'Selesai' : '+3 poin' ?>
                         </span>
                     </div>
-                    <?php if ($chat_today < 5): ?>
+                    <?php if (!$chat_5_claimed): ?>
                     <div class="mt-3 ml-14">
                         <div class="flex items-center gap-2">
                             <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                                <div class="h-full bg-blue-500 rounded-full" style="width: <?= ($chat_today/5)*100 ?>%"></div>
+                                <div class="h-full bg-blue-500 rounded-full" style="width: <?= min(100, ($chat_today/5)*100) ?>%"></div>
                             </div>
-                            <span class="text-xs text-slate-500"><?= $chat_today ?>/5</span>
+                            <span class="text-xs text-slate-500"><?= min($chat_today, 5) ?>/5</span>
                         </div>
                     </div>
                     <?php endif; ?>
