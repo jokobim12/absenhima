@@ -83,6 +83,17 @@
                             </svg>
                         </button>
                     </div>
+                    
+                    <!-- Zoom Control -->
+                    <div id="zoom-control" class="hidden mb-4">
+                        <div class="flex items-center gap-3 bg-slate-100 rounded-xl p-3">
+                            <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                            </svg>
+                            <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1" class="flex-1 h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                            <span id="zoom-value" class="text-slate-600 font-medium text-sm min-w-[40px] text-right">1.0x</span>
+                        </div>
+                    </div>
 
                     <!-- Status: Processing -->
                     <div id="status-processing" class="hidden">
@@ -148,11 +159,18 @@ var html5QrCode = null;
 var isProcessing = false;
 var userLocation = null;
 var useBackCamera = true;
+var currentTrack = null;
+var zoomCapabilities = null;
 
 function switchCamera() {
     if (isProcessing || !html5QrCode) return;
     
     useBackCamera = !useBackCamera;
+    currentTrack = null;
+    zoomCapabilities = null;
+    document.getElementById('zoom-control').classList.add('hidden');
+    document.getElementById('zoom-slider').value = 1;
+    document.getElementById('zoom-value').textContent = '1.0x';
     
     html5QrCode.stop().then(() => {
         startCamera();
@@ -170,7 +188,10 @@ function startCamera() {
         config,
         onScanSuccess,
         () => {} // Ignore no QR errors
-    ).catch(err => {
+    ).then(() => {
+        // Setup zoom after camera starts
+        setupZoom();
+    }).catch(err => {
         console.log('Camera error:', err);
         document.getElementById('reader').innerHTML = `
             <div class="text-center p-8">
@@ -179,6 +200,55 @@ function startCamera() {
                 <button onclick="location.reload()" class="px-4 py-2 bg-blue-500 text-white rounded-lg">Refresh</button>
             </div>`;
     });
+}
+
+function setupZoom() {
+    try {
+        const videoElement = document.querySelector('#reader video');
+        if (!videoElement || !videoElement.srcObject) return;
+        
+        const stream = videoElement.srcObject;
+        currentTrack = stream.getVideoTracks()[0];
+        
+        if (!currentTrack) return;
+        
+        const capabilities = currentTrack.getCapabilities();
+        
+        if (capabilities.zoom) {
+            zoomCapabilities = capabilities.zoom;
+            const slider = document.getElementById('zoom-slider');
+            slider.min = zoomCapabilities.min;
+            slider.max = zoomCapabilities.max;
+            slider.step = zoomCapabilities.step || 0.1;
+            slider.value = zoomCapabilities.min;
+            
+            document.getElementById('zoom-value').textContent = zoomCapabilities.min.toFixed(1) + 'x';
+            document.getElementById('zoom-control').classList.remove('hidden');
+            
+            console.log('Zoom supported:', zoomCapabilities);
+        } else {
+            document.getElementById('zoom-control').classList.add('hidden');
+            console.log('Zoom not supported on this device');
+        }
+    } catch (e) {
+        console.log('Zoom setup error:', e);
+    }
+}
+
+function applyZoom(zoomLevel) {
+    if (!currentTrack || !zoomCapabilities) return;
+    
+    try {
+        currentTrack.applyConstraints({
+            advanced: [{ zoom: zoomLevel }]
+        }).then(() => {
+            document.getElementById('zoom-value').textContent = parseFloat(zoomLevel).toFixed(1) + 'x';
+        }).catch(err => {
+            console.log('Zoom apply error:', err);
+        });
+    } catch (e) {
+        console.log('Zoom error:', e);
+    }
 }
 
 function initScanner() {
@@ -288,11 +358,16 @@ function requestLocation() {
 
 function resetScanner() {
     isProcessing = false;
+    currentTrack = null;
+    zoomCapabilities = null;
     document.getElementById('status-error').classList.add('hidden');
     document.getElementById('status-success').classList.add('hidden');
     document.getElementById('reader').style.display = 'block';
     document.getElementById('reader').innerHTML = '';
     document.getElementById('scan-hint').style.display = 'block';
+    document.getElementById('zoom-control').classList.add('hidden');
+    document.getElementById('zoom-slider').value = 1;
+    document.getElementById('zoom-value').textContent = '1.0x';
     
     // Reinitialize scanner
     initScanner();
@@ -300,6 +375,11 @@ function resetScanner() {
 
 // Initialize scanner
 initScanner();
+
+// Zoom slider event listener
+document.getElementById('zoom-slider').addEventListener('input', function(e) {
+    applyZoom(parseFloat(e.target.value));
+});
 </script>
 
 <style>

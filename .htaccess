@@ -12,21 +12,8 @@
     Deny from all
 </FilesMatch>
 
-# Protect config directory (allow PHP execution but deny direct access)
-<FilesMatch "^(koneksi|google|settings|helpers|lang|ratelimit|push_helper|gamification)\.php$">
-    <If "%{REQUEST_URI} =~ m#^/absenhima/config/#">
-        Order allow,deny
-        Deny from all
-    </If>
-</FilesMatch>
-
-# Protect uploads from PHP execution
-<Directory "uploads">
-    <FilesMatch "\.php$">
-        Order allow,deny
-        Deny from all
-    </FilesMatch>
-</Directory>
+# Protect config directory - handled by direct file protection
+# Note: <If> and <Directory> directives removed for .htaccess compatibility
 
 # Disable directory listing
 Options -Indexes
