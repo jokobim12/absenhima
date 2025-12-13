@@ -29,7 +29,7 @@ mysqli_stmt_close($stmt);
 
 if(!$token_row){
     $token = bin2hex(random_bytes(16));
-    $expired_at = date('Y-m-d H:i:s', strtotime('+5 seconds'));
+    $expired_at = date('Y-m-d H:i:s', strtotime('+1 minute'));
     
     $stmt = mysqli_prepare($conn, "INSERT INTO tokens(event_id, token, expired_at) VALUES(?, ?, ?)");
     mysqli_stmt_bind_param($stmt, "iss", $event_id, $token, $expired_at);

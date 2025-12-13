@@ -40,15 +40,9 @@ if($event['status'] != 'open'){
     exit;
 }
 
-// Invalidate semua token lama untuk event ini (hanya 1 QR valid pada satu waktu)
-$stmt = mysqli_prepare($conn, "UPDATE tokens SET expired_at = NOW() WHERE event_id = ? AND expired_at > NOW()");
-mysqli_stmt_bind_param($stmt, "i", $event_id);
-mysqli_stmt_execute($stmt);
-mysqli_stmt_close($stmt);
-
-// Generate token baru
+// Generate token baru (token lama tetap valid sampai expired, memungkinkan multiple scan bersamaan)
 $token = bin2hex(random_bytes(16));
-$expired_at = date('Y-m-d H:i:s', strtotime('+15 seconds'));
+$expired_at = date('Y-m-d H:i:s', strtotime('+1 minute'));
 
 $stmt = mysqli_prepare($conn, "INSERT INTO tokens(event_id, token, expired_at) VALUES(?, ?, ?)");
 mysqli_stmt_bind_param($stmt, "iss", $event_id, $token, $expired_at);

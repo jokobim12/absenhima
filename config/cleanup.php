@@ -7,10 +7,13 @@
 /**
  * Hapus tokens yang sudah expired
  * Dipanggil secara periodik atau saat generate token baru
+ * PENTING: Tidak menghapus token yang masih direferensikan oleh data absen
  */
 function cleanupExpiredTokens($conn, $olderThanMinutes = 60) {
     $stmt = mysqli_prepare($conn, 
-        "DELETE FROM tokens WHERE expired_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)"
+        "DELETE FROM tokens 
+         WHERE expired_at < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+         AND id NOT IN (SELECT DISTINCT token_id FROM absen WHERE token_id IS NOT NULL)"
     );
     mysqli_stmt_bind_param($stmt, "i", $olderThanMinutes);
     mysqli_stmt_execute($stmt);

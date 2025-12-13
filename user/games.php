@@ -223,17 +223,6 @@ $user_points = intval($user['total_points']);
             </div>
         </div>
         
-        <!-- Snake Game (Coming Soon) -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 opacity-60">
-            <div class="flex items-center gap-4">
-                <span class="text-4xl">🐍</span>
-                <div>
-                    <h3 class="font-bold text-slate-900">Snake Game</h3>
-                    <p class="text-sm text-slate-500">Segera hadir</p>
-                </div>
-            </div>
-        </div>
-        
         <!-- Rules -->
         <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
             <h3 class="font-semibold text-purple-900 mb-2">📋 Cara Main</h3>

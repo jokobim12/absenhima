@@ -146,7 +146,7 @@
                     </div>
 
                     <p id="scan-hint" class="text-center text-slate-400 text-sm">
-                        QR code berubah setiap 5 detik, pastikan Anda scan dengan cepat
+                        Arahkan kamera ke QR Code yang ditampilkan admin
                     </p>
                 </div>
             </div>
@@ -180,7 +180,7 @@ function switchCamera() {
 }
 
 function startCamera() {
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const config = { fps: 15, qrbox: { width: 280, height: 280 }, aspectRatio: 1.0 };
     const facingMode = useBackCamera ? "environment" : "user";
     
     html5QrCode.start(
