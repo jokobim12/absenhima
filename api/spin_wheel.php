@@ -13,22 +13,46 @@ include "../config/koneksi.php";
 $user_id = intval($_SESSION['user_id']);
 $today = date('Y-m-d');
 
+// Konfigurasi spin
+$MAX_SPIN_PER_DAY = 5;
+$FREE_SPIN_COUNT = 2;
+$COOLDOWN_HOURS = 4; // Jam cooldown setelah 2 spin gratis
+
 // Only POST allowed
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'error' => 'Method not allowed']);
     exit;
 }
 
-// Check if already spun today
-$check = mysqli_prepare($conn, "SELECT id FROM point_history WHERE user_id = ? AND activity_type = 'spin_wheel' AND DATE(created_at) = ?");
+// Hitung jumlah spin hari ini
+$check = mysqli_prepare($conn, "SELECT id, created_at FROM point_history WHERE user_id = ? AND activity_type = 'spin_wheel' AND DATE(created_at) = ? ORDER BY created_at DESC");
 mysqli_stmt_bind_param($check, "is", $user_id, $today);
 mysqli_stmt_execute($check);
-$already = mysqli_stmt_get_result($check)->fetch_assoc();
+$result = mysqli_stmt_get_result($check);
+$spin_today = mysqli_num_rows($result);
+$last_spin = mysqli_fetch_assoc($result);
 mysqli_stmt_close($check);
 
-if ($already) {
-    echo json_encode(['success' => false, 'error' => 'Sudah spin hari ini']);
+// Cek apakah sudah mencapai limit harian
+if ($spin_today >= $MAX_SPIN_PER_DAY) {
+    echo json_encode(['success' => false, 'error' => 'Sudah mencapai batas spin hari ini (5x)']);
     exit;
+}
+
+// Cek cooldown jika sudah melewati 2 spin gratis
+if ($spin_today >= $FREE_SPIN_COUNT && $last_spin) {
+    $last_time = strtotime($last_spin['created_at']);
+    $now = time();
+    $diff_hours = ($now - $last_time) / 3600;
+    
+    if ($diff_hours < $COOLDOWN_HOURS) {
+        $remaining_minutes = ceil(($COOLDOWN_HOURS * 3600 - ($now - $last_time)) / 60);
+        $hours = floor($remaining_minutes / 60);
+        $mins = $remaining_minutes % 60;
+        $time_text = $hours > 0 ? "{$hours} jam {$mins} menit" : "{$mins} menit";
+        echo json_encode(['success' => false, 'error' => "Tunggu $time_text lagi untuk spin berikutnya"]);
+        exit;
+    }
 }
 
 // Prize distribution (weighted random)

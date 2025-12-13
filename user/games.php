@@ -7,9 +7,48 @@ $user_id = intval($_SESSION['user_id']);
 $user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE id = $user_id"));
 $today = date('Y-m-d');
 
-// Cek apakah sudah spin hari ini
-$already_spin = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id FROM point_history WHERE user_id = $user_id AND activity_type = 'spin_wheel' AND DATE(created_at) = '$today'"));
-$can_spin = !$already_spin;
+// Konfigurasi spin (sama dengan api)
+$MAX_SPIN_PER_DAY = 5;
+$FREE_SPIN_COUNT = 2;
+$COOLDOWN_HOURS = 4;
+
+// Hitung jumlah spin hari ini
+$spin_result = mysqli_query($conn, "SELECT id, created_at FROM point_history WHERE user_id = $user_id AND activity_type = 'spin_wheel' AND DATE(created_at) = '$today' ORDER BY created_at DESC");
+$spin_today = mysqli_num_rows($spin_result);
+$last_spin = mysqli_fetch_assoc($spin_result);
+$remaining_spin = $MAX_SPIN_PER_DAY - $spin_today;
+
+// Cek status spin
+$can_spin = false;
+$cooldown_text = '';
+$status_type = 'available'; // available, cooldown, limit_reached
+
+if ($spin_today >= $MAX_SPIN_PER_DAY) {
+    $status_type = 'limit_reached';
+} elseif ($spin_today < $FREE_SPIN_COUNT) {
+    $can_spin = true;
+    $status_type = 'available';
+} else {
+    // Sudah melewati 2 spin gratis, cek cooldown
+    if ($last_spin) {
+        $last_time = strtotime($last_spin['created_at']);
+        $now = time();
+        $diff_hours = ($now - $last_time) / 3600;
+        
+        if ($diff_hours >= $COOLDOWN_HOURS) {
+            $can_spin = true;
+            $status_type = 'available';
+        } else {
+            $remaining_seconds = ($COOLDOWN_HOURS * 3600) - ($now - $last_time);
+            $hours = floor($remaining_seconds / 3600);
+            $mins = floor(($remaining_seconds % 3600) / 60);
+            $cooldown_text = $hours > 0 ? "{$hours}j {$mins}m" : "{$mins} menit";
+            $status_type = 'cooldown';
+        }
+    } else {
+        $can_spin = true;
+    }
+}
 
 // Get user points
 $user_points = intval($user['total_points']);
@@ -175,10 +214,15 @@ $user_points = intval($user['total_points']);
                     <p class="text-sm text-slate-500">Putar roda keberuntungan!</p>
                 </div>
                 <div class="text-right">
-                    <?php if($can_spin): ?>
+                    <?php if($status_type === 'available'): ?>
                     <span class="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
                         <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                        1x Tersedia
+                        <?= $remaining_spin ?>x Tersedia
+                    </span>
+                    <?php elseif($status_type === 'cooldown'): ?>
+                    <span class="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <?= $cooldown_text ?>
                     </span>
                     <?php else: ?>
                     <span class="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-sm font-medium">
@@ -213,11 +257,17 @@ $user_points = intval($user['total_points']);
                     <button id="spinBtn" onclick="spinWheel()" class="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg rounded-2xl shadow-lg transform hover:scale-105 transition-all">
                         🎰 PUTAR SEKARANG!
                     </button>
+                    <p class="text-sm text-slate-500 mt-3">Sisa: <?= $remaining_spin ?>x hari ini<?= $spin_today < $FREE_SPIN_COUNT ? ' (Gratis!)' : '' ?></p>
+                    <?php elseif($status_type === 'cooldown'): ?>
+                    <button disabled class="px-8 py-4 bg-yellow-400 text-yellow-900 font-bold text-lg rounded-2xl cursor-not-allowed">
+                        ⏳ Tunggu <?= $cooldown_text ?>
+                    </button>
+                    <p class="text-sm text-slate-500 mt-3">Sisa <?= $remaining_spin ?>x lagi hari ini</p>
                     <?php else: ?>
                     <button disabled class="px-8 py-4 bg-slate-300 text-slate-500 font-bold text-lg rounded-2xl cursor-not-allowed">
-                        Sudah Spin Hari Ini
+                        Sudah 5x Hari Ini
                     </button>
-                    <p class="text-sm text-slate-500 mt-3">Kembali lagi besok untuk spin gratis!</p>
+                    <p class="text-sm text-slate-500 mt-3">Kembali lagi besok untuk spin!</p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -227,7 +277,9 @@ $user_points = intval($user['total_points']);
         <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
             <h3 class="font-semibold text-purple-900 mb-2">📋 Cara Main</h3>
             <ul class="text-sm text-purple-700 space-y-1">
-                <li>• Kamu dapat 1x spin gratis setiap hari</li>
+                <li>• 2x spin pertama GRATIS setiap hari</li>
+                <li>• Spin ke-3 sampai ke-5: tunggu 4 jam setelah spin sebelumnya</li>
+                <li>• Maksimal 5x spin per hari</li>
                 <li>• Hadiah: 1, 2, 3, 5, 7, atau 10 poin</li>
                 <li>• Poin langsung masuk ke akun kamu</li>
                 <li>• Reset setiap jam 00:00 WITA</li>
@@ -299,9 +351,8 @@ $user_points = intval($user['total_points']);
             
             setTimeout(() => {
                 showResult(prize, data.total_points);
-                btn.innerHTML = 'Sudah Spin Hari Ini';
-                btn.classList.remove('from-purple-500', 'to-pink-500', 'hover:from-purple-600', 'hover:to-pink-600');
-                btn.classList.add('bg-slate-300', 'text-slate-500', 'cursor-not-allowed');
+                // Reload halaman setelah 2 detik untuk update status
+                setTimeout(() => location.reload(), 2000);
             }, 4200);
             
         } catch (err) {
