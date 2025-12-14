@@ -62,7 +62,7 @@ $prizes = [
     ['value' => 3, 'weight' => 20],
     ['value' => 5, 'weight' => 15],
     ['value' => 7, 'weight' => 7],
-    ['value' => 10, 'weight' => 3]
+    ['value' => 100, 'weight' => 1]
 ];
 
 // Calculate total weight
